@@ -77,8 +77,8 @@ set(CSQL_HIDDEN_DIR "${USER_HOME}/.csql")
 file(MAKE_DIRECTORY ${CSQL_HIDDEN_DIR})
 
 install(TARGETS csql DESTINATION /usr/local/bin)
-install(FILES csql.ini DESTINATION /etc)
-install(FILES types.tsv DESTINATION ${CSQL_HIDDEN_DIR})
+install(FILES etc/csql.ini DESTINATION /etc)
+install(FILES etc/types.tsv DESTINATION ${CSQL_HIDDEN_DIR})
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
