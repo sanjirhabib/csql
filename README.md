@@ -1,14 +1,14 @@
-** csql
+## csql
 
 csql is terminal based sqlite3 database viewer and eidtor.
 
-*** Features
+### Features
 
 - Spreadsheet like browsing.
 - In cell editing and adding.
 - Table structure editing.
 
-*** Installation
+### Installation
 
 ```bash
 git clone --depth=1 https://github.com/sanjirhabib/csql
@@ -20,7 +20,7 @@ To uninstall
 make uninstall
 ```
 
-*** Usage
+### Usage
 csql database.db
 
 Key bindings 
