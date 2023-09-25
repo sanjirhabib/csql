@@ -19,24 +19,22 @@
 #define max(x,y) (x>y?x:y)
 #define between(x,y,z) ((y)<(x) ? (x) : ((y)>(z) ? (z) : (y))) 
 #define Null (var){0}
-#define None (-1)
+#define Fail (-1)
 #define map_each(x,y,z) z=x.vals.ptr; for(int y=0; y<x.keys.len; y++)
 #define each(x,y,z) z=x.ptr; for(int y=0; y<x.len; y++)
 
 
 /*header
-typedef struct {
+typedef struct s_range {
 	int from;
 	int len;
-	int next;
-} part;
+} range;
 typedef enum {
 	IsNull=0,
-	IsPtr=-1,
+	IsFail=-1,
+	IsPtr=-2,
 	IsEnd=-3,
 	IsInt=-4,
-	IsError=-5,
-	IsNone=-6,
 	IsMap=-7,
 	IsDouble=-8
 } Type;
@@ -69,17 +67,6 @@ typedef struct s_pair {
 } pair;
 end*/
 
-int hash(var v){
-	if(v.len>0) return cl_hash(v.ptr,v.len);
-	int ret=0x1d4592f8+(int)v.ll+v.ll>>32;
-	return ret ? ret : 0xc533c700;
-}
-int cl_hash(char *str, int len){
-	int ret = 0x1d4592f8;
-	int i=0;
-	while(i<len) ret=((ret<<5)+ret)+tolower(str[i++]);
-	return ret ? ret : 0xc533c700; //never return 0
-};
 void pair_free(pair* pair){
 	_free(&pair->head);
 	_free(&pair->tail);
@@ -171,24 +158,16 @@ void* vec_last(vector in){
 void* vec_first(vector in){
 	return vec_p(in,0);
 }
-int pow2(int i){
-	if(!i) return 0;
-	i--;
-	int ret=2;
-	while(i>>=1) ret<<=1;
-	return ret;
-};
 vector vec_del(vector* in,int idx){
 	return vec_del_ex(in,idx,1,_free);
 }
-part len_part(int full,int from,int len){
+range len_range(int full,int from,int len){
 	if(from<0) from=0;
 	if(from>full) from=full;
-	//if(!len) len=full-from; //len 0=to end, now len 0 is 0 len string.
 	if(len<0) len=full+len-from;
 	if(len<0) len=0;
 	if(from+len>full) len=full-from;
-	return (part){
+	return (range){
 		.from=from,
 		.len=len
 	};
@@ -226,7 +205,7 @@ vector vec_own(vector in){
 	return in;
 }
 vector vec_del_ex(vector* in,int idx,int len,void* callback){
-	part r=len_part(in->len,idx,len);
+	range r=len_range(in->len,idx,len);
 	if(!r.len) return *in;
 	if(!r.from && r.len==in->len){
 		vec_free_ex(in,callback);
@@ -421,12 +400,12 @@ string trim_ex(string in, char* chars){
 string trim(string in){
 	return trim_ex(in," \t\n\r");
 }
-string s_rest(string main, string sub){
-	if(!sub.str) return main;
-	sub.str+=sub.len;
-	sub.len=main.len-(sub.str-main.str);
-	return sub;
-}
+//string s_rest(string main, string sub){
+//	if(!sub.str) return main;
+//	sub.str+=sub.len;
+//	sub.len=main.len-(sub.str-main.str);
+//	return sub;
+//}
 void pair_sub(pair* in,int start,int len){
 	if(!len) len=in->tail.len-start;
 	in->tail.str+=start;
@@ -436,20 +415,16 @@ vector s_vec(string in,char* by){
 	return s_vec_ex(in,by,0);
 }
 vector s_vec_ex(string in,char* by,int limit){
-	int len=strlen(by);
 	vector ret=vec_new();
-	string temp;
-	int from=0;
-	for(int i=0; i<=in.len-len; i++){
-		if(strncmp(in.str+i,by,len)==0){
-			temp=i==from ? Null : slice(in,from,i-from);
-			vec_add(&ret,temp);
-			from=i+len;
-			i+=len-1; //-1 as i++ will inc it in enclosing for-loop
-			if(limit && ret.len>=limit-1) break;
+	string r={0};
+	while((r=s_upto(in,by,r)).len!=Fail){
+		vec_add(&ret,r);
+		if(limit && ret.len==limit-1){
+			vec_add(&ret,s_rest(in,by,r));
+			break;
 		}
 	}
-	vec_add(&ret,slice(in,from,in.len));
+	if(!ret.len) vec_add(&ret,Null);
 	return ret;
 }
 string s_cs(string in){
@@ -472,16 +447,6 @@ string s_splice(string in, int offset, int len,string replace){
 string s_del(string in, int offset, int len){
 	return s_splice(in,offset,len,Null);
 }
-string sub(string in, int from, int len){
-	if(!len){
-		_free(&in);
-		return Null;
-	}
-	part r=len_part(in.len,from,len);
-	string ret=s_new(in.str+r.from,r.len);
-	_free(&in);
-	return ret;
-}
 string c_copy(char* in){
 	return s_new(in,strlen(in));
 }
@@ -495,7 +460,7 @@ string tail(string in, int len){
 	return slice(in,len,in.len-len);
 }
 string slice(string in, int from, int len){
-	part r=len_part(in.len,from,len);
+	range r=len_range(in.len,from,len);
 	return r.len ? (string){
 		.str=in.str+r.from*max(in.datasize,1),
 		.len=r.len,
@@ -562,7 +527,7 @@ char* jump_char(char* ptr, char* end,char* chars){
 }
 vector vec_cut(vector* in,int from, int len){
 	vector ret=vec_new_ex(in->datasize,0);
-	part r=len_part(in->len,from,len);
+	range r=len_range(in->len,from,len);
 	if(!r.len) return ret;
 	if(!r.from && r.len==in->len){
 		ret=*in;
@@ -583,16 +548,11 @@ pair cut_any(string in,char* any){
 	return ret;
 }
 pair cut(string in,char* by){
-	int len=strlen(by);
-	pair ret={0};
-	for(int i=0; i<=in.len-len; i++){
-		if(strncmp(in.str+i,by,len)!=0) continue;
-		ret.head=slice(in,0,i);
-		ret.tail=slice(in,i+len,in.len);
-		return ret;
-	}
-	ret.head=in;
-	return ret;
+	string s=s_upto(in,by,Null);
+	return (pair){
+		.head=s,
+		.tail=slice(in,s.len+strlen(by),in.len),
+	};
 }
 string cutp(string* in,char* by){
 	pair ret=cut(*in,by);
@@ -638,8 +598,8 @@ int _c(var in,char* out){
 	}
 	switch(in.len){
 		case IsPtr : if(out) memcpy(out,"<ptr>",6); return 5;
-		case IsEnd : if(out) memcpy(out,"<ptr>",6); return 5;
-		case IsError : if(out) memcpy(out,"<ptr>",6); return 5;
+		case IsEnd : if(out) memcpy(out,"<end>",6); return 5;
+		case IsFail : if(out) memcpy(out,"<fail>",6); return 5;
 		case IsInt :
 			int len=snprintf(0,0,"%d",in.i);
 			if(!out) return len;
@@ -657,7 +617,7 @@ int _c(var in,char* out){
 	}
 }
 string vec_s(vector in,char* sep){
-	if(!in.len) return Null;
+	if(!in.len) return vec_new();
 	string sep1=c_(sep);
 	int len=((in.len-1)*sep1.len)+vec_strlen(in);
 	pair ret=buff_new(len);
@@ -679,34 +639,46 @@ string cat_c(string in,char* add){
 int _len(var in){
 	return _c(in,NULL);
 }
-part s_part(string in){
-	return (part){
+range s_range(string in){
+	return (range){
 		.from=0,
 		.len=in.len
 	};
 }
-part s_next(string in,part r,char* sep){
-	int len=strlen(sep);
-	for(int i=r.next; i<in.len; i++){
-		if(strncmp(in.str+i,sep,len)==0){
-			r.len=i-r.next;
-			r.from=r.next;
-			r.next=i+len;
-			return r;
-		}
+string s_rest(string in,char* sep,string r){
+	r.len=in.len-(r.str-in.str)-strlen(sep);
+	return r;
+}
+string s_upto(string in,char* sep,string r){
+	if(!in.len) return (string){.len=Fail};
+	int seplen=strlen(sep);
+	r.str+=r.len;
+	if(!r.str){
+		r.str=in.str;
+		r.readonly=1;
 	}
-	if(r.next<in.len){
-		r.len=in.len-r.next;
-		r.from=r.next;
-		r.next=in.len;
-		return r;
-	}
-	if(r.from+r.len<r.next){
-		r.from=r.next;
+	else
+		r.str+=seplen;
+	if(r.str==in.str+in.len){
 		r.len=0;
 		return r;
 	}
-	return (part){0};
+	if(r.str>in.str+in.len){
+		r.len=Fail;
+		return r;
+	}
+
+	char* end=in.ptr+in.len-seplen;
+	char* ptr=r.str;
+	while(ptr<=end && strncmp(ptr,sep,seplen)!=0) ptr++;
+
+	if(ptr>end){ //whole string matched.
+		r.len=in.len-(r.str-in.str);
+		return r;
+	}
+
+	r.len=ptr-r.str;
+	return r;
 }
 void out(char* fmt,...){
 	va_list args;
@@ -732,11 +704,12 @@ string c_repeat(char* in, int times){
 	return ret;
 }
 string format_vargs(char* fmt,va_list args){
-	part r={0};
+	string r={0};
 	int total=0;
 	var vfmt=c_(fmt);
-	while((r=s_next(vfmt,r,"{}")).next) total++;
+	while((r=s_upto(vfmt,"{}",r)).len!=Fail) total++;
 	total-=1;
+	if(!total) return vfmt;
 
 	va_list copy;
 	va_copy(copy,args);
@@ -746,18 +719,17 @@ string format_vargs(char* fmt,va_list args){
 		var sub=va_arg(args,var);
 		len+=_len(sub);
 	}
-	pair ret=buff_new(strlen(fmt)-total*2+len);
+	pair ret=buff_new(vfmt.len-total*2+len);
 
-	r=(part){0};
+	r=(string){0};
 	for(int i=0; i<total; i++){
-		r=s_next(vfmt,r,"{}");
-		if(r.len) buff_add(&ret,slice(vfmt,r.from,r.len));
+		r=s_upto(vfmt,"{}",r);
+		if(r.len) buff_add(&ret,r);
 		var sub=va_arg(copy,var);
 		buff_add(&ret,sub);
 	}
-
-	r=s_next(vfmt,r,"{}");
-	if(r.len) buff_add(&ret,slice(vfmt,r.from,r.len));
+	r=s_upto(vfmt,"{}",r);
+	if(r.len) buff_add(&ret,r);
 
 	va_end(copy);
 	return ret.head;
@@ -911,7 +883,7 @@ var _dup(var in){
 	return ret;
 }
 int is_error(var in){
-	return in.len==IsError;
+	return in.len==IsFail;
 }
 int is_char(char c,int alpha,int num,char* extra){
 	if(alpha && (c>='a' && c<='z' || c>='A' && c<='Z')) return 1;
@@ -941,4 +913,9 @@ int is_word(string word,char* list){
 void die(char* msg){
 	fprintf(stderr,"%s",msg);
 	exit(-1);
+}
+string s_join(string in,char* terminator,string add){
+	if(!add.len) return in;
+	if(!in.len) return add;
+	return cat(cat_c(in,terminator),add);
 }

@@ -1,4 +1,5 @@
 #include "var.h"
+#include "code.h"
 #include "map.h"
 
 #define map_all(ret, ...) _m_all(ret, ##__VA_ARGS__,end_new())
@@ -14,6 +15,8 @@ typedef struct {
 	int tail;
 } mapindex;
 end*/
+
+#define NullMap (map){0}
 
 map vec_map(vector keys,vector vals){
 	return (map){
@@ -33,11 +36,11 @@ map map_new_ex(int datasize){
 	return ret;
 }
 int keys_idx(vector keys, vector index, string key){
-	if(!keys.len) return None;
+	if(!keys.len) return Fail;
 	int slot=hash(key) & index.len-1;
 	slot=((mapindex*)index.str)[slot].head-1;
 	while(1){
-		if(slot<0) return None;
+		if(slot<0) return Fail;
 		if(eq(key,((var*)keys.str)[slot])) return slot;
 		slot=((mapindex*)index.str)[slot].tail-1;
 	}
@@ -102,7 +105,7 @@ map* map_del_ex(map* in, var key,void* callback){
 }
 void* map_add_ex(map* in, var key, void* data,void* callback){
 	int slot=keys_idx(in->keys,in->index,key);
-	if(slot!=None){ //key exists
+	if(slot!=Fail){ //key exists
 		if(callback) ((void(*)(void*))callback)(vec_p(in->vals,slot));
 		if(data) memcpy(in->vals.str+in->vals.datasize*slot,data,in->vals.datasize);
 		_free(&key);
@@ -297,92 +300,21 @@ string _json(var in){
 	}
 	return _s(in);
 }
-char* jump_quote(char* ptr, char* end){
-	if(end-ptr<2) return ptr;
-	if(!strchr("\"'`",*ptr)) return ptr;
-	char c=*ptr;
-	ptr++;
-	while(ptr<end){
-		if(*ptr=='\\') ptr+=2;
-		else if(*ptr==c) return ptr;
-		else ptr++;
-	}
-	return ptr;
+int hash(var v){
+	if(v.len>0) return cl_hash(v.ptr,v.len);
+	int ret=0x1d4592f8+(int)v.ll+v.ll>>32;
+	return ret ? ret : 0xc533c700;
 }
-char* jump_paren(char* ptr, char* end){
-	if(end-ptr<2) return ptr;
-	if(!strchr("([{",*ptr)) return ptr;
-	int level=1;
-	char c=*ptr;
-	char o=c+1+c/80; //the closing paren for each of 3 kinds of paren
-	ptr++;
-	while(ptr<end){
-		ptr=jump_quote(ptr,end);
-		ptr=jump_comment(ptr,end);
-		if(*ptr==o) level--;
-		else if(*ptr==c) level++;
-		if(!level) return ptr;
-		ptr++;
-	}
-	return ptr;
-}
-char* jump_comment(char* ptr, char* end){
-	if(end-ptr<3) return ptr;
-	if(memcmp("\n--",ptr,3)!=0) return ptr;
-	ptr+=3;
-	while(ptr<end){
-		if(*ptr=='\n') return ptr;
-		else ptr++;
-	}
-	return ptr;
-}
-char* jump_separator(char* ptr,char* end,char* seps){
-	while(ptr<end){
-		char* from=ptr;
-		ptr=jump_comment(ptr,end);
-		ptr=jump_char(ptr,end,seps);
-		if(ptr==from) return ptr;
-	}
-	return ptr;
-}
-vector code_split(string in,char* seps,int total){
-	char* end=in.str+in.len;
-	char* ptr=in.str;
-	vector ret=vec_new();
-	char* from=ptr;
-	char* terms=NULL;
-	int slen=strlen(seps);
-	char quotes[]="([{\"'`";
-	terms=memcpy(malloc(slen+sizeof(quotes)),seps,slen);
-	strcpy(terms+slen,quotes);
-	char* nonterms=memset(malloc(slen+1),0,slen+1);
-	int off=0;
-	for(int i=0; i<slen; i++){
-		if(strchr(quotes,seps[i])) continue;
-		nonterms[off++]=seps[i];
-	}
-	while(ptr<end){
-		while(ptr<end){
-			char* from2=ptr;
-			ptr=jump_paren(ptr,end);
-			char* temp=ptr;
-			ptr=jump_quote(ptr,end);
-			if(temp!=ptr) ptr++;
-			ptr=jump_nonchar(ptr,end,terms);
-			if(ptr==from2) break;
-			if(ptr>=end) break;
-			if(strchr(terms,*ptr)) break;
-		}
-		if(ptr==from||ptr>=end) break;
-		if(strchr(seps,*ptr)){
-			vec_add(&ret,cl_(from,ptr-from));
-			ptr=jump_separator(ptr,end,nonterms);
-			from=ptr;
-			if(total && ret.len>=total-1) break;
-		}
-	}
-	if(from<end) vec_add(&ret,cl_(from,end-from));
-	free(terms);
-	free(nonterms);
+int cl_hash(char *str, int len){
+	int ret = 0x1d4592f8;
+	int i=0;
+	while(i<len) ret=((ret<<5)+ret)+tolower(str[i++]);
+	return ret ? ret : 0xc533c700; //never return 0
+};
+int pow2(int i){
+	if(!i) return 0;
+	i--;
+	int ret=2;
+	while(i>>=1) ret<<=1;
 	return ret;
-}
+};

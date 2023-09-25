@@ -56,6 +56,10 @@ vector vec_punchholes(vector in,int interval,int offset){
 	}
 	return in;
 }
+map rows_addrow(map in){
+	in.vals=splice(in.vals,in.vals.len,0,vec_new_ex(sizeof(var),in.keys.len),NULL);
+	return in;
+}
 cross cross_addrow(cross in,int nrow, string key, vector row){
 	if(key.len) nrow=keys_idx(in.vals.keys,in.vals.index,key);
 	if(nrow==-1||nrow>=in.vals.keys.len) nrow=in.vals.keys.len;

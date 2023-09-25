@@ -1,6 +1,7 @@
 #include <sqlite3.h>
 #include "var.h"
 #include "sql.h"
+#include "log.h"
 #include "lite.h"
 
 
@@ -22,8 +23,8 @@ string lite_msg(var conn){
 	return lite_error(conn) ? c_((char*)sqlite3_errmsg(conn.ptr)) : (string){0};
 }
 map lite_print_error(var conn,string sql,map params){
-	msg("\n%.*s\n",sql.len,sql.str);
-	msg("%s\n",sqlite3_errmsg(conn.ptr));
+	log_add(sql);
+	log_add(c_(sqlite3_errmsg(conn.ptr)));
 	_free(&sql);
 	map_free(&params);
 	return (map){0};
@@ -129,9 +130,10 @@ var lite_update(var conn,var table,map pkeys,map vals){
 string lite_tablesql(var conn, string table){
 	return lite_val(conn,c_("select sql from sqlite_schema where type='table' and name=:name"),map_all(c_("name"),ro(table)));
 }
-map tbl_cols(var conn,string table,cross types){
+map table_fields(var conn,string table,cross types){
 	string sql=lite_tablesql(conn,table);
 	map cols=sql_cols(sql,types);
+	if(!cols.keys.len) return cols;
 	((field*)getp(cols.vals,0))->mem=sql.ptr;
 
 	map rows=lite_exec(conn,c_("select substr(sql,instr(sql,'(')+1,instr(sql,')')-instr(sql,'(')-1) from sqlite_master where type='index' and tbl_name=:tbl and sql like '%UNIQUE%'"),map_all(c_("tbl"),table));
@@ -148,7 +150,7 @@ map tbl_cols(var conn,string table,cross types){
 	map_free(&rows);
 	return cols;
 }
-//map tbl_cols(var conn,string table){
+//map table_fields(var conn,string table){
 //	map rs=lite_exec(conn,format("pragma table_info ({})",table),(map){0});
 //	if(!rs.keys.len) return (map){0};
 //	map ret=map_new_ex(sizeof(field));

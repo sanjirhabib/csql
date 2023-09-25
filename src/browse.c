@@ -1,112 +1,271 @@
-#include "csql.h"
-#include "structure.h"
-#include "database.h"
-#include "file.h"
+#include "window.h"
 #include "browse.h"
-int table_list(var conn){
-	int2 dim=vis_size();
-	map rows=lite_exec(conn, c_("select name from sqlite_master where type='table' and not name in ('search', 'search_config', 'search_content', 'search_data', 'search_docsize', 'search_idx') order by 1"),(map){0});
-	string types_s=file_s(c_("types.tsv"));
-	cross types=cross_new(s_rows(types_s));
-	int c=0;
-	map vals=rows_vals(rows, 0);
-	window win={.x=4, .y=3,.width=dim.x-8,.height=dim.y-6};
-	
-	do{
-		string tbl=win_menu(win,map_ro(vals),c_("Tables"));
-		if(!tbl.len) break;
-		table_browse(conn,tbl,win,types);
-		fflush(stdout);
-	}while(1);
-	_free(&types_s);
-	map_free(&vals);
-	cross_free(&types);
-	map_free(&rows);
-	return 0;
-}
-int table_browse(var conn, string table,window win,cross types){
-	browse_data e=cols_browsedata(tbl_cols(conn, ro(table), types),win);
-	browse_reload(&e,conn,table);
-	browse_colwidth(&e);
-	e.curs.curr.y++;
 
-	cursor old={0};
-	int c=0;
-	do{
-		if(c=='\n' && e.curs.curr.y==-1){
-			int ret=structure_browse(conn, table,win,types);
-			if(ret){ //structure changed
-				browse_free(&e);
-				e=cols_browsedata(tbl_cols(conn, ro(table), types),win);
-				browse_reload(&e,conn,table);
-				browse_colwidth(&e);
-			}
+/*header
+typedef struct s_browse_data {
+	window win;
+	window view;
+	vector wins;
+	map cols;
+	cursor curs;
+	cross rs;
+	map changed;
+	int reload;
+	int save;
+	int exit;
+	int rowid;
+	int can_search;
+} browse_data;
+
+end*/
+
+vector c_vec(char* in){
+	return s_vec(c_(in)," ");
+}
+void vecpair_free(pair* pair){
+	vec_free(&pair->head);
+	vec_free(&pair->tail);
+}
+void browse_free(browse_data* e){
+	cross_free(&e->rs);
+	_free(&e->wins);
+	map_free_ex(&e->cols,field_free);
+	map_free_ex(&e->changed,vecpair_free);
+}
+
+browse_data cols_browsedata(map cols,window win){
+	return (browse_data){
+		.win=win,
+		.view={
+			.height=win.height-2,
+		},
+		.cols=cols,
+		.curs={
+			.total.x=cols.keys.len,
+			.limit.len=win.height*4,
+			.curr.x=min(cols.keys.len,1),
+			.curr.y=0,
+			.cols=ro(cols.keys),
+		},
+		.changed=map_new_ex(sizeof(pair)),
+		.rowid=1,
+		.reload=1,
+	};
+}
+void browse_colwidth(browse_data* e){
+	_free(&e->wins);
+	e->wins=cols_wins(e->cols.keys,e->rs,e->win);
+	cols_aligns(e->cols,e->rs);
+}
+browse_data* browse_key(browse_data* e,int c){
+	int reload=0;
+
+	e->curs.curr=cursor_key(e->curs.curr,c,e->view.height,(int4){.x=0,.x2=e->curs.total.x,.y=-1,.y2=e->curs.total.y});
+	int ret=0;
+
+	if(c==27){
+		e->exit=1;
+	}
+	else if(c==KeyCtrl+'s'){
+		e->save=1;
+		e->reload=1;
+	}
+	else if(c=='\n'){
+		if(e->curs.curr.y==-1){
+//			ret=structure_browse(conn, table,e->win,types);
+			if(ret==1) e->exit=1;
 		}
 		else{
-			old=e.curs;
-			browse_key(&e,c);
-		}
-		if(e.exit){
-			if(confirm_save(&e))
-				browse_save(&e,conn,table);
-			if(e.exit)
-				break;
-		}
-		if(e.reload){
-			if(confirm_save(&e))
-				browse_save(&e,conn,table);
-			if(e.reload){
-				vis_msg("reloaded");
-				browse_reload(&e,conn,table);
+			window wedit=cursor_win(e->curs.curr,e->view,e->wins);
+			int rowno=curs_rowno(e->curs);
+			string colname=curs_colname(e->curs);
+			string val=cross_get(e->rs,rowno,Null,0,colname);
+			int edited=0;
+			val=edit_input(wedit,val,&edited);
+			if(edited){
+				cell_set(e,colname,val);
+				if(e->can_search && e->curs.curr.y==0)
+					e->reload=1;
 			}
-			else e.curs=old;
 		}
-		browse_view(&e);
-		table_title(&e,table);
-		browse_body(&e);
-		fflush(stdout);
-	} while((c=vim_char(vim_getch())));
-	browse_free(&e);
-	win_clear(e.win);
+	}
+	else if(c==KeyCtrlDel){
+		if(e->can_search && e->curs.curr.y==0){ //filter row deleted
+			cross_resetrow(e->rs, e->curs.curr.y-e->curs.limit.from, Null);
+			e->reload=1;
+		}
+		else if(e->curs.curr.y==e->curs.total.y-1){ //deleting the addnew line
+			int rid=e->curs.curr.y-e->curs.limit.from;
+			var rowid=cross_get(e->rs,rid,Null,0,c_("rowid__"));
+			cross_resetrow(e->rs, rid, Null);
+			cross_set(e->rs,rid,Null,0,c_("rowid__"),rowid); //preserve rowid
+			map_del_ex(&e->changed,rowid,vecpair_free);
+		}
+		else{
+			string key=cross_get(e->rs,curs_rowno(e->curs),Null,0,c_("rowid__"));
+			int rowno=curs_rowno(e->curs);
+			pair* temp=map_add_ex(&e->changed,key,NULL,NULL);
+			if(!temp->head.len) temp->head=vec_dup(cross_row(e->rs,rowno,Null).vals);
+			vec_free(&temp->tail);
+			e->rs=cross_delrow(e->rs,rowno,Null);
+			e->curs.total.y--;
+			vis_msg("1 record deleted");
+		}
+	}
+	if(
+		max(e->curs.curr.y-e->view.height,0)<e->curs.limit.from
+		|| min(e->curs.curr.y+e->view.height,e->curs.total.y)>e->curs.limit.from+e->curs.limit.len
+	){
+		e->curs.limit.from=max(0,e->curs.curr.y-e->view.height*3);
+		e->curs.limit.len=e->view.height*6;
+		e->reload=1;
+	}
+	return e;
+}
+int confirm_save(browse_data* e){
+	if(!e->changed.keys.len) return 0;
+	if(e->save){
+		e->save=0;
+		return 1;
+	}
+	win_clear(e->win);
+	string ans=win_menu(e->win,s_map(c_("yes Save no Discard redit Re-edit")),c_("Save changed?"));
+	if(eq_c(ans,"no")){
+		map_free_ex(&e->changed,vecpair_free);
+		return 0;
+	}
+	else if(eq_c(ans,"yes")){
+		return 1;
+	}
+	e->reload=0;
 	return 0;
 }
-browse_data* browse_reload(browse_data* e,var conn,string table){
-	if(!e->reload) return e;
-	e->can_search=1;
-
-	vector searching={0};
-	map filter={0};
-
-	if(e->rs.rows.vals.len){
-		searching=cross_disownrow(e->rs,0,Null);
-		filter=filter_params(
-			(map){
-			.keys=ro(e->cols.keys),
-			.vals=searching,.index=ro(e->cols.index)
-			}
-		);
-	}
-
-	string sq={0};
-	sq=format("select count(*) from {}",ro(table));
-	sq=sql_filter(sq,ro(filter.keys));
-	e->curs.total.y=atoil(lite_val(conn, sq, map_ro(filter)));
-
-	string sql=format("select * from {} order by 1", ro(table));
-	sql=sql_filter(sql,ro(filter.keys));
-	sql=sql_limit(sql, e->curs.limit.from, e->curs.limit.len);
-	map rows=lite_exec(conn, sql,filter);
-	rows.vals=splice(rows.vals,rows.vals.len,0,vec_new_ex(sizeof(var),rows.keys.len),NULL);
-	rows=rows_addcol(rows,-1,Null,c_("rowid__"));
-	if(!searching.len) searching=vec_new_ex(sizeof(var),rows.keys.len);
-	rows.vals=splice(rows.vals,0,0,searching,NULL);
-	for(int i=0; i<rows.vals.len/rows.keys.len; i++){
-		rows.vals.var[i*rows.keys.len+rows.keys.len-1].i=e->rowid++;
-	}
-	e->curs.total.y+=2;
-
-	e->rs=cross_reinit(e->rs,rows);
-	if(lite_error(conn)) vis_msg("%.*s",ls(lite_msg(conn)));
-	e->reload=0;
+browse_data* browse_view(browse_data* e){
+	e->view=cursor_view((int2){.y=max(e->curs.curr.y,0), .x=e->curs.curr.x},e->view,e->win.width,e->wins);
 	return e;
+}
+
+void table_title(browse_data* e,string table){
+	string title=cat(c_("Table: "),ro(table));
+	int half=e->win.width/2;
+	win_title(win_resize(e->win,WinRight,-half),title,WinLeft);
+	string temp={0};
+	if(e->curs.curr.y==0 && e->can_search)
+		temp=c_("Search");
+	else if(e->curs.curr.y==-1)
+		temp=c_("Setup");
+	else if(e->curs.curr.y==e->curs.total.y-1)
+		temp=c_("+Add New");
+	else
+		temp=print_s("Row: %d/%d",e->curs.curr.y,e->curs.total.y-2);
+	vis_goto(e->win.x+half,e->win.y);
+	s_out(s_pad(temp,half,WinRight));
+}
+void browse_body(browse_data* e){
+	for(int i=e->view.x; i<e->view.x+e->view.width; i++){
+		string col=get(e->curs.cols,i);
+		int colno=keys_idx(e->rs.rows.keys,e->rs.rows.index,col);
+		window* w=e->wins.ptr;
+		field f=*(field*)map_getp(e->cols,col);
+		if(e->curs.curr.y==-1){
+			if(i==e->curs.curr.x){ //cursor
+				s_out(vis_bg(0,180,0));
+				s_out(vis_fg(0,0,0));
+			}
+			else
+				s_out(vis_bg(30,30,30));
+		}
+		win_title(win_resize(w[i],WinTop,1),ro(f.title),f.align);
+		if(e->curs.curr.y==-1)
+			vis_print(VisNormal);
+
+		vector vs=view_vals(e->view,e->rs,e->curs,i);
+
+		for(int j=0; j<w[i].height; j++){
+			int rno=j+e->view.y;
+			vis_goto(w[i].x,w[i].y+j);
+
+			var rowid=cross_get(e->rs,rno-e->curs.limit.from,Null,0,c_("rowid__"));
+			pair* pp=map_getp(e->changed,rowid);
+			var changed=pp ? pp->tail.var[colno] : (var){.len=IsFail};
+
+			string v=get(vs,j);
+
+			int bgchanged=1;
+			if(i==e->curs.curr.x && rno==e->curs.curr.y){ //cursor
+				s_out(vis_bg(0,180,0));
+				s_out(vis_fg(0,0,0));
+			}
+			else if(e->can_search && rno==0) //search line
+				s_out(vis_fg(255,255,255));
+			else if(changed.len!=IsFail)
+				s_out(vis_bg(90,30,30));
+			else if(rno==e->curs.curr.y)
+				s_out(vis_bg(30,30,30));
+			else 
+				bgchanged=0;
+	
+			text_out(ellipsis(v,w[i].width-1),w[i].width-1,f.align);
+			printf(" ");
+			if(bgchanged) vis_print(VisNormal);
+		}
+	}
+	//clean the remaining rect on the right.
+	window* w=e->wins.ptr;
+	window wlast=w[e->view.x+e->view.width-1];
+	if(wlast.width+wlast.x<e->win.width+e->win.x){
+		win_clear((window){
+			.x=wlast.width+wlast.x,
+			.width=e->win.width+e->win.x-wlast.width-wlast.x,
+			.y=wlast.y-1,
+			.height=wlast.height+1,
+		});
+	}
+}
+void cell_log(browse_data* e,string name,string val){
+	int rowno=curs_rowno(e->curs);
+
+	if(e->can_search && !rowno) return; //don't log search line
+	
+	string key=cross_get(e->rs,rowno,Null,0,c_("rowid__"));
+	pair* temp=map_add_ex(&e->changed,key,NULL,NULL);
+	if(
+		rowno<e->curs.total.y-1 //not adding now
+		&& !temp->tail.len //neither adding started previously
+		&& !temp->head.len
+	)
+		temp->head=vec_dup(cross_row(e->rs,rowno,Null).vals);
+	if(!temp->tail.len){
+		vector v=vec_new_ex(sizeof(var),cross_ncols(e->rs));
+		for(int i=0; i<v.len; i++) v.var[i].len=IsFail;
+		temp->tail=v;
+	}
+	int nid=cross_colno(e->rs,name);
+	if(nid!=Fail) temp->tail.var[nid]=ro(val);
+}
+void cell_set(browse_data* e,string name,string val){
+	if(!name.len) name=curs_colname(e->curs);
+	cell_log(e,name,val);
+	e->rs=cross_set(e->rs,curs_rowno(e->curs),Null,0,name,val);
+	if(e->curs.curr.y==e->curs.total.y-1){ //add another newline bellow if last line
+		vector row=vec_new_ex(sizeof(var),e->rs.rows.keys.len);
+		row.var[row.len-1].i=e->rowid++;
+		e->rs=cross_addrow(e->rs, -1, Null, row);
+		e->curs.total.y++;
+	}
+}
+string cell_get(browse_data* e,string name){
+	return cross_get(e->rs,curs_rowno(e->curs),Null,0,name.len ? name : curs_colname(e->curs));
+}
+string cell_combo(browse_data* e,vector suggests,int* edited){
+	window w=cursor_win(e->curs.curr,e->view,e->wins);
+	string colname=curs_colname(e->curs);
+	string val=cell_get(e,colname);
+	return edit_combo(w,val,suggests,edited);
+}
+string cell_edit(browse_data* e,int* edited){
+	window w=cursor_win(e->curs.curr,e->view,e->wins);
+	string colname=curs_colname(e->curs);
+	string val=cell_get(e,colname);
+	return edit_input(w,val,edited);
 }

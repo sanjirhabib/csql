@@ -1,5 +1,6 @@
 #include "var.h"
-#include "csql.h"
+#include "window.h"
+#include "log.h"
 
 #define lib_error(x) _lib_error(x,__FILE__,__LINE__)
 #define lib_warn(x) _lib_warn(x,__FILE__,__LINE__)
@@ -10,28 +11,9 @@ int msg_timer;
 vector msg_queue;
 vector log_lines;
 
-int vis_error(string in,window win){
-	vis_log(in,win);
-	getchar();
-	return 0;
-}
-int vis_log(string in,window win){
-	log_add(in);
-	log_show(win);
-	return 0;
-}
 int log_add(string in){
 	log_lines=cat(log_lines,vec_own(s_vec(ro(in),"\n")));
 	if(log_lines.len>200) vec_del_ex(&log_lines,0,log_lines.len-200,_free);
-	return 0;
-}
-int log_show(window win){
-	editor e=editor_new(win);
-	e.lines=ro(log_lines);
-	e.curr.y=log_lines.len;
-	editor_view(&e);
-	editor_show(&e,win);
-	editor_free(&e);
 	return 0;
 }
 int vis_show(){

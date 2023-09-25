@@ -1,5 +1,9 @@
 #include "var.h"
 #include "file.h"
+#include <errno.h>
+#include <wordexp.h>
+
+
 
 int is_file(string filename){
 	struct stat st={0};
@@ -52,7 +56,7 @@ string filec_s(char* filename){
 	string ret={0};
 	if(!filename) return ret;
 	FILE* fp=fopen(filename,"r");
-	if(!fp) return ret;
+	if(!fp) return Null;
 	fseek(fp,0,SEEK_END);
 	size_t size=ftell(fp);
 	fseek(fp,0,SEEK_SET);
@@ -64,7 +68,13 @@ string filec_s(char* filename){
 }
 string file_s(string filename){
 	string temp=s_cs(filename);
-	string ret=filec_s(temp.str);
+
+    wordexp_t exp_result;
+    wordexp(temp.str, &exp_result, 0);
+
+	string ret=filec_s(exp_result.we_wordv[0]);
+
 	_free(&temp);
+	wordfree(&exp_result);
 	return ret;
 }

@@ -19,7 +19,7 @@ file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/include)
 # List all your C source files from the "src" directory
 set(SOURCES
 	src/sql.c
-	src/csql.c
+	src/window.c
 	src/editor.c
 	src/var.c
 	src/lite.c
@@ -28,10 +28,12 @@ set(SOURCES
 	src/structure.c
 	src/cross.c
 	src/map.c
+	src/code.c
 	src/database.c
 	src/log.c
 	src/file.c
-    # Add more source files here as needed
+	src/cmdline.c
+	src/field.c
 )
 
 set(GENHEADER_SCRIPT ${CMAKE_SOURCE_DIR}/bin/cheader)
