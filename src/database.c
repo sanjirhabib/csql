@@ -208,9 +208,7 @@ browse_data* browse_save(browse_data* e, var conn, string table){
 		e->reload=0;
 		e->exit=0;
 		vis_msg(msg.str);
-		log_show(e->win);
-		fflush(stdout);
-		getchar();
+		vis_error(c_("Press ESC to close"),e->win);
 	}
 	vfree(pkeys);
 	return e;

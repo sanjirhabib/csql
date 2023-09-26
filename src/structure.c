@@ -81,10 +81,7 @@ void structure_save(browse_data* e,var conn,string table,window win){
 	vector sqls=sync_fields(table, fields,colmap);
 	sqls=cat(sqls,sql_triggers(conn,table));
 
-	lite_exec(conn, c_("begin transaction"),NullMap);
 	int errs=sqls_exec(conn, sqls,e->win);
-	if(!errs) lite_exec(conn, c_("commit"),NullMap);
-	else lite_exec(conn,c_("rollback"),NullMap);
 
 	map_free_ex(&fields, field_free);
 	if(errs){
@@ -194,8 +191,10 @@ vector sync_sql(string name, string sql,cross types,map oldcols){
 		at=i;
 		break;
 	}
-	if(at==Fail) return Null;
-
+	if(at==Fail){
+		vfree(toks);
+		return Null;
+	}
 	map cols=sql_cols(sqls.var[at],types);
 	map colmap=match_cols(cols,oldcols);
 	map_free_ex(&cols,field_free);
@@ -246,22 +245,39 @@ vector sync_fields(string name, map cols,map colmap){
 	return ret;
 }
 int sqls_exec(var conn, vector sqls,window win){
-	int ret=0;
-	vis_print(VisNoCursor);
+	int errs=0;
+	vis_log(c_("begin"),win);
+	lite_exec(conn, c_("begin"),NullMap);
 	for(int i=0; i<sqls.len; i++){
 		vis_log(sqls.var[i],win);
 		lite_exec(conn, ro(sqls.var[i]),NullMap);
 		if(lite_error(conn)){
-			getchar();
-			ret=1;
+			log_show(win);
+			errs=1;
 			break;
 		}
 		else{
 			vis_log(c_("OK"),win);
 		}
 	}
+	if(!errs){
+		vis_log(c_("commit"),win);
+		lite_exec(conn, c_("commit"),NullMap);
+		if(lite_error(conn)){
+			log_show(win);
+			errs=1;
+		}
+		else{
+			vis_log(c_("OK"),win);
+		}
+	}
+	if(errs){
+		vis_log(c_("rollback"),win);
+		lite_exec(conn,c_("rollback"),NullMap);
+		vis_error(c_("Press ESC to close"),win);
+	}
 	vec_free(&sqls);
-	return ret;
+	return errs;
 }
 string table_sqls(var conn, string table){
 	map rows=lite_exec(conn, c_("select sql from sqlite_schema where tbl_name=:name"),map_all(c_("name"),ro(table)));
@@ -286,8 +302,10 @@ int edit_sqls(var conn,string table,window win,cross types){
 			if(eq_c(ans,"redit"))
 				continue;
 		}
+		string nsqls=editwin_get(&ewin);
 		map cols=table_fields(conn,table,types);
-		int errs=sqls_exec(conn, sync_sql(table,sqls,types,cols),win);
+		int errs=sqls_exec(conn, sync_sql(table,nsqls,types,cols),win);
+		_free(&nsqls);
 		map_free_ex(&cols,field_free);
 		if(!errs){
 			vis_msg("Structure Updated");

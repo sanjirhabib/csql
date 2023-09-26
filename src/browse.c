@@ -1,4 +1,4 @@
-#include "winedit.h"
+#include "ewin.h"
 #include "browse.h"
 
 /*header
@@ -72,7 +72,6 @@ browse_data* browse_key(browse_data* e,int c){
 	}
 	else if(c=='\n'){
 		if(e->curs.curr.y==-1){
-//			ret=structure_browse(conn, table,e->win,types);
 			if(ret==1) e->exit=1;
 		}
 		else{

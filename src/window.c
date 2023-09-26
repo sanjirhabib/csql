@@ -45,19 +45,13 @@ struct changed {
 	int2 cell;
 	int updated;
 };
-typedef enum {
-	ColorNormal,
-	ColorEdit,
-	ColorSelect,
-	ColorSuggest,
-} Color;
 extern vector msg_queue;
 extern vector log_lines;
 extern int msg_timer;
 extern char* terminalcodes[];
 end*/
 
-char* terminalcodes[]={ ///typedef enum {
+char* terminalcodes []={ ///typedef enum {
 	"\0337",   ///VisSavePos,
 	"\0338",   ///VisRestorePos,
 	"\033[?47h",   ///VisSaveScr,
