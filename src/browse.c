@@ -130,6 +130,7 @@ int confirm_save(browse_data* e){
 		return 1;
 	}
 	e->reload=0;
+	e->exit=0;
 	return 0;
 }
 browse_data* browse_view(browse_data* e){

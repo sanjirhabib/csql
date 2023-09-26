@@ -1,5 +1,4 @@
 #include "var.h"
-#include "code.h"
 #include "map.h"
 
 #define map_all(ret, ...) _m_all(ret, ##__VA_ARGS__,end_new())
@@ -195,22 +194,6 @@ map _m_all(string in,...){
 	}
 	va_end(args);
 	return ret;
-}
-map s_map(string in){
-	vector toks=code_split(in," ",0);
-	int len=toks.len;
-	vector keys=vec_new_ex(sizeof(var),toks.len/2);
-	vector vals=vec_new_ex(sizeof(var),toks.len/2);
-	for(int i=0; i<toks.len/2; i++){
-		keys.var[i]=toks.var[i*2];
-		vals.var[i]=toks.var[i*2+1];
-	}
-	_free(&toks);
-	return (map){
-		.keys=keys,
-		.vals=vals,
-		.index=keys_index(keys),
-	};
 }
 var map_var(map in){
 	return (var){.ptr=to_heap(&in,sizeof(in)),.len=IsMap};

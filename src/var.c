@@ -19,6 +19,8 @@
 #define max(x,y) (x>y?x:y)
 #define between(x,y,z) ((y)<(x) ? (x) : ((y)>(z) ? (z) : (y))) 
 #define Null (var){0}
+#define NullVec (var){.datasize=sizeof(var)}
+#define NullStr (var){.datasize=1}
 #define Fail (-1)
 #define map_each(x,y,z) z=x.vals.ptr; for(int y=0; y<x.keys.len; y++)
 #define each(x,y,z) z=x.ptr; for(int y=0; y<x.len; y++)
@@ -122,6 +124,10 @@ string i_s(long long in){
 	do{ ret[at--]='0'+temp%10; } while ((temp/=10));
 	if(in<0) ret[at--]='-';
 	return c_copy(ret+at+1);
+}
+vector vvec_free(vector in){
+	vec_free(&in);
+	return NullVec;
 }
 void vec_free(vector* in){
 	vec_free_ex(in,_free);
@@ -509,20 +515,6 @@ string s_lower(string in){
 		if(in.str[i]>='A' && in.str[i]<='Z') in.str[i]+=('a'-'A');
 	}
 	return in;
-}
-char* jump_nonchar(char* ptr, char* end,char* chars){
-	while(ptr<end){
-		if(strchr(chars,*ptr)) return ptr;
-		else ptr++;
-	}
-	return ptr;
-}
-char* jump_char(char* ptr, char* end,char* chars){
-	while(ptr<end){
-		if(!strchr(chars,*ptr)) return ptr;
-		else ptr++;
-	}
-	return ptr;
 }
 vector vec_cut(vector* in,int from, int len){
 	vector ret=vec_new_ex(in->datasize,0);

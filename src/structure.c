@@ -181,7 +181,7 @@ map match_cols(map newcols,map oldcols){
 	return ret;
 }
 vector sync_sql(string name, string sql,cross types,map oldcols){
-	vector sqls=code_split(trim_ex(sql," \t\n\r;"),";",0);
+	vector sqls=sql_split(sql);
 	vec_trim(sqls);
 	vector toks={0};
 	int at=Fail;
@@ -252,7 +252,6 @@ int sqls_exec(var conn, vector sqls,window win){
 		vis_log(sqls.var[i],win);
 		lite_exec(conn, ro(sqls.var[i]),NullMap);
 		if(lite_error(conn)){
-			log_show(win);
 			getchar();
 			ret=1;
 			break;

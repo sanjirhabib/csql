@@ -28,8 +28,18 @@ window editwin_view(editwin* ewin){
 			view.x=max(0, x-m25);
 	}
 	else if(view.x && x<view.x) view.x=0;
-	view.y=max(0,e->curr.y-view.height/2);
-	if(view.y && view.y+view.height>e->lines.len+1) view.y=max(0,e->lines.len+1-view.height);
+
+	int y=e->curr.y;
+	len=e->lines.len;
+	int m50=view.height/2;
+	if(len>view.height){
+		if(y>m50-1 && y+m50<=len)
+			view.y=y-m50+1;
+		else if(y<=m50) view.y=0;
+		else if(y>len-m50) view.y=len-view.height+1;
+	}
+	else if(view.y && y<view.y) view.y=0;
+
 	ewin->view=view;
 	return view;
 }
@@ -201,7 +211,7 @@ int log_show(window win){
 	editwin ewin=editwin_new(win,Null);
 	_free(&ewin.editor.lines);
 	ewin.editor.lines=ro(log_lines);
-	ewin.editor.curr.y=log_lines.len;
+	ewin.editor.curr.y=log_lines.len-1;
 	editwin_view(&ewin);
 	editwin_show(&ewin);
 	editwin_free(&ewin);
@@ -231,15 +241,14 @@ void editwin_show(editwin* ewin){
 	window win=ewin->win;
 	editor* e=&ewin->editor;
 	vis_print(VisEdit);
-	for(int i=view.y; i<view.y+view.height; i++){
-		vis_goto(win.x,win.y+i-view.y);
-		string s=get(e->lines,i);
+	for(int i=0; i<view.height; i++){
+		string s=get(e->lines,i+view.y);
 		s=slice(s,view.x,view.width);
 		string full=s_pad(s,view.width,WinLeft);
 		s=ro(full);
 		int x=view.x;
 		vis_goto(win.x, win.y+i);
-		each(ewin->colors.var[i-view.y],j,var* color){
+		each(ewin->colors.var[i],j,var* color){
 			int len=color[j].xy.x-x;
 			if(len>0){
 				s_out(slice(s,0,len));

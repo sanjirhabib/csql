@@ -1,5 +1,4 @@
-#include "var.h"
-#include "window.h"
+#include "map.h"
 #include "log.h"
 
 #define lib_error(x) _lib_error(x,__FILE__,__LINE__)
@@ -14,41 +13,6 @@ vector log_lines;
 int log_add(string in){
 	log_lines=cat(log_lines,vec_own(s_vec(ro(in),"\n")));
 	if(log_lines.len>200) vec_del_ex(&log_lines,0,log_lines.len-200,_free);
-	return 0;
-}
-int vis_show(){
-	var s={0};
-	if(msg_timer>0 && msg_timer<2){
-		msg_timer++;
-		return 0;
-	}
-	else if(msg_queue.len){
-		msg_timer=1;
-		s=msg_queue.var[0];
-		msg_queue=splice(msg_queue,0,1,Null,NULL);
-	}
-	else if(msg_timer>4) msg_timer=0;
-	else if(!msg_timer) return 0;
-	else{
-		msg_timer++;
-		return 0;
-	}
-	vis_print(VisSavePos);
-	vis_goto(1, 0);
-	vis_print(VisClearLine);
-	s_out(s);
-	vis_print(VisRestorePos);
-	fflush(stdout);
-	return 0;
-}
-int vis_msg(char* format, ...){
-	if(msg_queue.len>10) return 0;
-	va_list args;
-	va_start(args,  format);
-	string msg=vargs_s(format, args);
-	va_end(args);
-	vec_add(&msg_queue,msg);
-	vis_show();
 	return 0;
 }
 var dump(var in){

@@ -49,6 +49,23 @@ char* jump_separator(char* ptr,char* end,char* seps){
 	}
 	return ptr;
 }
+/*
+   old
+   seps " \t\n\r;("
+   terms " \t\n\r[{('\"`;"
+   nonterms " \t\n\r;"
+
+   new
+   seps " \t\n\r"
+   terms ";("
+   stops ""
+
+	//new stops = old param:seps
+	//new terms = old param:seps
+	//seps = old var:nonterms
+	
+	string stops=cat_all(c_(seps),c_(terms),cl_("\0",1));
+	*/
 vector code_split(string in,char* seps,int total){
 	char* end=in.str+in.len;
 	char* ptr=in.str;
@@ -90,6 +107,13 @@ vector code_split(string in,char* seps,int total){
 	free(nonterms);
 	return ret;
 }
+int vec_count(vector in,char* search){
+	int ret=0;
+	var s=c_(search);
+	for(int i=0; i<in.len; i++)
+		if(eq(in.var[i],s)) ret++;
+	return ret;
+}
 int vec_search(vector in,string s){
 	for(int i=0; i<in.len; i++)
 		if(eq(in.var[i],s)) return i;
@@ -125,4 +149,33 @@ vector vec_split(vector in,char* words){
 	if(from<in.len) vec_add(&ret,slice(in,from,in.len-from));
 	return ret;
 }
-
+char* jump_nonchar(char* ptr, char* end,char* chars){
+	while(ptr<end){
+		if(strchr(chars,*ptr)) return ptr;
+		else ptr++;
+	}
+	return ptr;
+}
+char* jump_char(char* ptr, char* end,char* chars){
+	while(ptr<end){
+		if(!strchr(chars,*ptr)) return ptr;
+		else ptr++;
+	}
+	return ptr;
+}
+map s_map(string in){
+	vector toks=code_split(in," ",0);
+	int len=toks.len;
+	vector keys=vec_new_ex(sizeof(var),toks.len/2);
+	vector vals=vec_new_ex(sizeof(var),toks.len/2);
+	for(int i=0; i<toks.len/2; i++){
+		keys.var[i]=toks.var[i*2];
+		vals.var[i]=toks.var[i*2+1];
+	}
+	_free(&toks);
+	return (map){
+		.keys=keys,
+		.vals=vals,
+		.index=keys_index(keys),
+	};
+}

@@ -1,4 +1,5 @@
 #include "map.h"
+#include "log.h"
 #include "database.h"
 #include "browse.h"
 #include "cmdline.h"

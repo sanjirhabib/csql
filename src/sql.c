@@ -1,4 +1,5 @@
 #include "field.h"
+#include "code.h"
 #include "cross.h"
 #include "sql.h"
 
@@ -126,4 +127,26 @@ string sql_limit(string sql,int from, int len){
 	}
 	else vec_free(&toks);
 	return format("{} limit {},{}",sql,i_s(from),i_s(len));
+}
+vector sql_split(string in){
+	vector toks=code_split(in,";",0);
+	string full=Null;
+	vector ret=NullVec;
+	int level=0;
+	each(toks,i,var* tok){
+		vector toks2=code_split(trim(tok[i])," \t\n\r",0);
+		level+=vec_count(toks2,"begin");
+		level-=vec_count(toks2,"end");
+		_free(&toks2);
+		if(!full.len) full=tok[i];
+		else full.len=tok[i].str+tok[i].len-full.str;
+		if(!level){
+			if(trim(full).len) vec_add(&ret,full);
+			full=Null;
+		}
+		
+	}
+	_free(&toks);
+	if(trim(full).len) vec_add(&ret,full);
+	return ret;
 }
