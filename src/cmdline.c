@@ -3,7 +3,7 @@
 #include "browse.h"
 #include "cmdline.h"
 
-#define COMPILE_DATE "2023-09-25"
+#define COMPILE_DATE "2023-09-26"
 
 /*header
 struct s_args {

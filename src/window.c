@@ -33,11 +33,6 @@ typedef struct s_options {
 	int opno;
 	vector options;
 } options;
-typedef struct s_editwin {
-	window win;
-	window view;
-	editor e;
-} editwin;
 typedef struct s_cursor {
 	int2 curr;
 	int2 total;
@@ -59,10 +54,10 @@ typedef enum {
 extern vector msg_queue;
 extern vector log_lines;
 extern int msg_timer;
-
+extern char* terminalcodes[];
 end*/
 
-static char* terminalcodes[]={ ///typedef enum {
+char* terminalcodes[]={ ///typedef enum {
 	"\0337",   ///VisSavePos,
 	"\0338",   ///VisRestorePos,
 	"\033[?47h",   ///VisSaveScr,
@@ -628,203 +623,9 @@ int rows_idx(map rows,int row,int col){
 int vals_idx(map vals,int row,int col){
 	return vals.keys.len*col+row;
 }
-window editor_view(editor* e){
-	window view=e->view;
-	int m25=view.width*0.25;
-	int m75=view.width-m25;
-	string curr=get(e->lines, e->curr.y);
-	int len=display_len(curr);
-	int x=display_len(slice(curr,0,e->curr.x));
-	if(len>=view.width){
-		if(x>view.x+m75)
-			view.x=x-m75;
-		else if(view.x && x<view.x+m25)
-			view.x=max(0, x-m25);
-	}
-	else if(view.x && x<view.x) view.x=0;
-	view.y=max(0,e->curr.y-view.height/2);
-	if(view.y && view.y+view.height>e->lines.len+1) view.y=max(0,e->lines.len+1-view.height);
-	e->view=view;
-	return view;
-}
-void color_print(Color no){
-	char* colors[]={
-		terminalcodes[VisEdit],
-		terminalcodes[VisEdit],
-		terminalcodes[VisSelect],
-		terminalcodes[VisSuggest],
-	};
-	printf("%s",colors[no]);
-}
-void add_color(editor* e, int line, int offset, Color color){
-	vec_add(e->colors.var+line-e->view.y,(var){.xy.x=offset, .xy.y=color });
-}
-void suggest_color(editor* e,options* op){
-	if(!op->oplen) return;
-	add_color(e,e->curr.y,e->curr.x,ColorSuggest);
-	add_color(e,e->curr.y,e->curr.x+op->oplen,ColorEdit);
-}
-void editor_color(editor* e){
-	window view=editor_view(e);
-	each(e->colors,i,var* v) _free(v+i);
-	if(e->selected.x==Fail) return;
-	int4 ordered=select_ordered(e->selected);
-	add_color(e,ordered.y,ordered.x,ColorSelect);
-	add_color(e,ordered.y2,ordered.x2,ColorEdit);
-}
-void editor_show(editor* e,window win){
-	window view=e->view;
-	vis_print(VisEdit);
-	for(int i=view.y; i<view.y+view.height; i++){
-		vis_goto(win.x,win.y+i-view.y);
-		string s=get(e->lines,i);
-		s=slice(s,view.x,view.width);
-		string full=s_pad(s,view.width,WinLeft);
-		s=ro(full);
-		int x=view.x;
-		each(e->colors.var[i-view.y],j,var* color){
-			int len=color[j].xy.x-x;
-			s_out(slice(s,0,len));
-			s=slice(s,len,s.len);
-			color_print(color[j].xy.y);
-			x+=len;
-		}
-		s_out(s);
-		_free(&full);
-	}
-	vis_print(VisNormal);
-	int offset=display_len(slice(get(e->lines,e->curr.y),view.x,e->curr.x));
-	if(e->selected.x!=Fail && !is_reverse_selection(e->selected) && offset) offset--;
-	vis_goto(win.x+offset, win.y+e->curr.y-view.y);
-	vis_print(VisCursor);
-	fflush(stdout);
-}
-void add_suggest(editor* e, options* op){
-	int from=e->curr.x;
-	if(!from) return;
-	string curr=e->lines.var[e->curr.y];
-	if(from<curr.len && (is_alpha_char(curr.str[from]))){
-		return; // cursor at mid of word, return
-	}
-	int upto=from;
-	while(from>0 && is_alpha_char(curr.str[from-1])) from--;
-	if(from==upto){
-		return; // nothing typed. return.
-	}
-	if(!is_alpha_char(curr.str[from])) from++;
-
-	string word=slice(curr,from,e->curr.x-from);
-	string match={0};
-	int matchno=Fail;
-	if(op->opno<0) op->opno=0;
-	for(int i=0; i<op->options.len; i++){
-		string s=get(op->options,i);
-		int matched=0;
-		while(matched<word.len && matched<s.len && toupper(word.str[matched])==toupper(s.str[matched])) matched++;
-		if(matched==word.len && s.len>word.len){
-			match=s;
-			matchno++;
-			if(matchno==op->opno) break;
-		}
-	}
-	if(matchno!=Fail && matchno!=op->opno && match.len) op->opno=matchno;
-	if(word.len<match.len){
-		op->oplen=match.len-word.len;
-		curr=s_insert(curr,e->curr.x,slice(match,word.len,op->oplen));
-		e->lines.var[e->curr.y]=curr;
-	}
-}
-int option_key(editor* e,int c,options* op){
-	if(!op->oplen) return c;
-
-	string curr=e->lines.var[e->curr.y];
-	if(c=='\t'){
-		e->curr.x+=op->oplen;
-		op->oplen=0;
-		if(!op->opno) add_suggest(e,op);
-		op->opno=0;
-		return 0;
-	}
-	curr=s_del(curr,e->curr.x,op->oplen);
-	e->lines.var[e->curr.y]=curr;
-	op->oplen=0;
-	if(c==KeyDown){
-		op->opno++;
-		add_suggest(e,op);
-		return 0;
-	}
-	else if(c==KeyUp){
-		op->opno--;
-		add_suggest(e,op);
-		return 0;
-	}
-	op->opno=0;
-	return c;
-}
-string edit_combo(window win, string text, vector ops,int* edited){
-	int c=0;
-	options op={
-		.options=ops,
-	};
-	editor e=editor_new(win);
-	e.lines=s_vec(text,"\n");
-	e.selected=(int4){.x2=text.len};
-	e.curr.x=e.selected.x2;
-	do{
-		if(c==27 && e.selected.x==Fail) break;
-		if(win.height==1 && (c=='\r'||c=='\n')) break;
-		if(win.height>1 && c=='s'+KeyCtrl) break;
-		c=option_key(&e, c, &op);
-		editor_key(&e, c);
-		add_suggest(&e, &op);
-		editor_color(&e);
-		suggest_color(&e,&op);
-		editor_show(&e,win);
-	} while((c=vis_getch()));
-	win_clear(win);
-	return editor_close(&e,c,text,edited);
-}
-string edit_input(window win, string text, int* edited){
-	int c=0;
-	editor e=editor_new(win);
-	e.lines=s_vec(text,"\n");
-	if(e.lines.len==1){
-		e.selected=(int4){.x2=text.len};
-		e.curr.x=e.selected.x2;
-	}
-	do{
-		if(c==27 && e.selected.x==Fail) break;
-		if(win.height==1 && (c=='\r'||c=='\n')) break;
-		if(win.height>1 && c=='s'+KeyCtrl) break;
-		editor_key(&e, c);
-		editor_color(&e);
-		editor_show(&e,win);
-	} while((c=vis_getch()));
-	win_clear(win);
-	return editor_close(&e,c,text,edited);
-}
 int curs_rowno(cursor in){
 	return in.curr.y-in.limit.from;
 }
 string curs_colname(cursor in){
 	return get(in.cols,in.curr.x);
-}
-int log_show(window win){
-	editor e=editor_new(win);
-	e.lines=ro(log_lines);
-	e.curr.y=log_lines.len;
-	editor_view(&e);
-	editor_show(&e,win);
-	editor_free(&e);
-	return 0;
-}
-int vis_error(string in,window win){
-	vis_log(in,win);
-	getchar();
-	return 0;
-}
-int vis_log(string in,window win){
-	log_add(in);
-	log_show(win);
-	return 0;
 }

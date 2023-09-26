@@ -34,8 +34,6 @@ typedef struct s_edittask {
 	string text;
 } edittask;
 typedef struct s_editor {
-	window view;
-	vector colors;
 	int4 selected;
 	int2 curr;
 	vector lines;
@@ -359,11 +357,12 @@ editor* editor_key(editor* e,int c){
 		char temp[2]={c,0};
 		e=edit_add(e->curr.x,e->curr.y,c_(temp),e,slno);
 	}
+
 	if(e->selected.x!=Fail){
 		e->selected.x2=e->curr.x;
 		e->selected.y2=e->curr.y;
 	}
-
+	
 	return e;
 }
 int is_reverse_selection(int4 in){
@@ -385,34 +384,17 @@ int indent_level(string in){
 	while(i<in.len && strchr("\t ",in.str[i++])) ret++;
 	return ret;
 }
-editor editor_new(window win){
+editor editor_new(){
 	return (editor){
-		.view={.width=win.width,.height=win.height},
 		.selected.x=Fail,
 		.undobuff={.datasize=sizeof(edittask)},
-		.colors=vec_new_ex(sizeof(var),win.height),
 	};
 }
-string editor_free(editor* e){
+void editor_free(editor* e){
 	_free(&e->clipboard);
 	vec_free_ex(&e->undobuff, task_free);
 	vec_free(&e->lines);
-	vec_free(&e->colors);
-	printf("\033[?25l"); //hide cursor
 }
-string editor_close(editor* e,int c,string text,int* edited){
-	string ret=vec_s(ro(e->lines), "\n");
-	editor_free(e);
-	if(eq(text,ret)){
-		*edited=EditNone;
-		_free(&text);
-		_free(&ret);
-		return Null;
-	}
-	_free(&text);
-	if(c==27)
-		*edited=EditCancel;
-	else
-		*edited=EditSave;
-	return ret;
+string editor_get(editor* e){
+	return vec_s(ro(e->lines), "\n");
 }

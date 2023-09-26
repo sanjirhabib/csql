@@ -424,7 +424,6 @@ vector s_vec_ex(string in,char* by,int limit){
 			break;
 		}
 	}
-	if(!ret.len) vec_add(&ret,Null);
 	return ret;
 }
 string s_cs(string in){

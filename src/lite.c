@@ -23,7 +23,7 @@ string lite_msg(var conn){
 	return lite_error(conn) ? c_((char*)sqlite3_errmsg(conn.ptr)) : (string){0};
 }
 map lite_print_error(var conn,string sql,map params){
-	log_add(sql);
+	//log_add(sql);
 	log_add(c_(sqlite3_errmsg(conn.ptr)));
 	_free(&sql);
 	map_free(&params);

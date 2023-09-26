@@ -31,11 +31,9 @@ int structure_browse(var conn, string table,window win,cross types){
 				if(ret) e.reload=1;
 			}
 			else if(eq_c(curs_colname(e.curs),"type")){
-				string old=cell_get(&e,Null);
 				vector suggest=cross_col(types,0,c_("type"));
-				int edited=0;
-				string val=cell_combo(&e,suggest,&edited);
-				if(edited==EditSave){
+				string val=cell_combo(&e,suggest);
+				if(val.len!=Fail){
 					cell_set(&e,c_("type"),val);
 					map rtype=cross_row(types,0,val);
 					if(rtype.keys.len){
@@ -43,7 +41,6 @@ int structure_browse(var conn, string table,window win,cross types){
 						cell_set(&e,c_("index"),map_get(rtype,c_("index")));
 					}
 				}
-				else _free(&val);
 			}
 			else browse_key(&e,c);
 		}
@@ -255,12 +252,14 @@ int sqls_exec(var conn, vector sqls,window win){
 		vis_log(sqls.var[i],win);
 		lite_exec(conn, ro(sqls.var[i]),NullMap);
 		if(lite_error(conn)){
-			vis_show(win);
+			log_show(win);
+			getchar();
 			ret=1;
 			break;
 		}
-		else
+		else{
 			vis_log(c_("OK"),win);
+		}
 	}
 	vec_free(&sqls);
 	return ret;
@@ -275,35 +274,29 @@ string table_sqls(var conn, string table){
 int edit_sqls(var conn,string table,window win,cross types){
 	string sqls=table_sqls(conn,table);
 	int ret=0;
+	editwin ewin=editwin_new(win,sqls);
 	while(1){
-		int edited=0;
-		sqls=edit_input(win,sqls,&edited);
-		if(edited==EditNone) break;
-		else if(edited==EditCancel){
+		edit_input(&ewin);
+		if(!editwin_changed(&ewin))
+			break;
+
+		else if(ewin.key==27){
 			string ans=win_menu(win,s_map(c_("yes Apply no Discard redit Re-edit")),c_("Apply Changes?"));
-			if(!ans.len || eq_c(ans,"no")){
-				_free(&sqls);
+			if(!ans.len || eq_c(ans,"no"))
 				break;
-			}
-			if(eq_c(ans,"yes")) edited=EditSave;
+			if(eq_c(ans,"redit"))
+				continue;
 		}
-		if(edited=EditSave){
-			vis_msg("Applying changes");
-			lite_exec(conn, c_("begin transaction"),NullMap);
-			map cols=table_fields(conn,table,types);
-			int errs=sqls_exec(conn, sync_sql(table,sqls,types,cols),win);
-			if(!errs) lite_exec(conn, c_("commit"),NullMap);
-			if(lite_error(conn)) errs++;
-			map_free_ex(&cols,field_free);
-			if(errs){
-				lite_exec(conn, c_("rollback"),NullMap);
-			}
-			else{
-				vis_msg("Structure Updated");
-				ret=1;
-			}
+		map cols=table_fields(conn,table,types);
+		int errs=sqls_exec(conn, sync_sql(table,sqls,types,cols),win);
+		map_free_ex(&cols,field_free);
+		if(!errs){
+			vis_msg("Structure Updated");
+			ret=1;
+			break;
 		}
 	}
+	editwin_free(&ewin);
 	vfree(sqls);
 	return ret;
 }

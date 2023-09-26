@@ -29,6 +29,7 @@ set(SOURCES
 	src/cross.c
 	src/map.c
 	src/code.c
+	src/winedit.c
 	src/database.c
 	src/log.c
 	src/file.c

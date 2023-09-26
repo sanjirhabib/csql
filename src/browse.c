@@ -1,4 +1,4 @@
-#include "window.h"
+#include "winedit.h"
 #include "browse.h"
 
 /*header
@@ -76,17 +76,9 @@ browse_data* browse_key(browse_data* e,int c){
 			if(ret==1) e->exit=1;
 		}
 		else{
-			window wedit=cursor_win(e->curs.curr,e->view,e->wins);
-			int rowno=curs_rowno(e->curs);
-			string colname=curs_colname(e->curs);
-			string val=cross_get(e->rs,rowno,Null,0,colname);
-			int edited=0;
-			val=edit_input(wedit,val,&edited);
-			if(edited){
-				cell_set(e,colname,val);
-				if(e->can_search && e->curs.curr.y==0)
-					e->reload=1;
-			}
+			string ret=cell_edit(e);
+			if(ret.len!=Fail && e->can_search && e->curs.curr.y==0)
+				e->reload=1;
 		}
 	}
 	else if(c==KeyCtrlDel){
@@ -257,15 +249,21 @@ void cell_set(browse_data* e,string name,string val){
 string cell_get(browse_data* e,string name){
 	return cross_get(e->rs,curs_rowno(e->curs),Null,0,name.len ? name : curs_colname(e->curs));
 }
-string cell_combo(browse_data* e,vector suggests,int* edited){
+string cell_combo(browse_data* e,vector suggests){
 	window w=cursor_win(e->curs.curr,e->view,e->wins);
 	string colname=curs_colname(e->curs);
 	string val=cell_get(e,colname);
-	return edit_combo(w,val,suggests,edited);
+	editwin ewin=editwin_new(w,val);
+	edit_combo(&ewin,suggests);
+	return editwin_close(&ewin);
 }
-string cell_edit(browse_data* e,int* edited){
+string cell_edit(browse_data* e){
 	window w=cursor_win(e->curs.curr,e->view,e->wins);
 	string colname=curs_colname(e->curs);
 	string val=cell_get(e,colname);
-	return edit_input(w,val,edited);
+	editwin ewin=editwin_new(w,val);
+	edit_input(&ewin);
+	string newval=editwin_close(&ewin);
+	if(newval.len!=Fail) cell_set(e,colname,newval);
+	return newval;
 }
