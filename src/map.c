@@ -1,7 +1,7 @@
 #include "var.h"
 #include "map.h"
 
-#define map_all(ret, ...) _m_all(ret, ##__VA_ARGS__,end_new())
+#define map_all(ret, ...) _m_all(ret, ##__VA_ARGS__,VarEnd)
 
 /*header
 typedef struct s_map {
@@ -35,11 +35,11 @@ map map_new_ex(int datasize){
 	return ret;
 }
 int keys_idx(vector keys, vector index, string key){
-	if(!keys.len) return Fail;
+	if(!keys.len) return End;
 	int slot=hash(key) & index.len-1;
 	slot=((mapindex*)index.str)[slot].head-1;
 	while(1){
-		if(slot<0) return Fail;
+		if(slot<0) return End;
 		if(eq(key,((var*)keys.str)[slot])) return slot;
 		slot=((mapindex*)index.str)[slot].tail-1;
 	}
@@ -104,7 +104,7 @@ map* map_del_ex(map* in, var key,void* callback){
 }
 void* map_add_ex(map* in, var key, void* data,void* callback){
 	int slot=keys_idx(in->keys,in->index,key);
-	if(slot!=Fail){ //key exists
+	if(slot!=End){ //key exists
 		if(callback) ((void(*)(void*))callback)(vec_p(in->vals,slot));
 		if(data) memcpy(in->vals.str+in->vals.datasize*slot,data,in->vals.datasize);
 		_free(&key);
@@ -187,7 +187,7 @@ map _m_all(string in,...){
 	va_start(args,in);
 	var name=in;
 	while(1){
-		if(name.len==IsEnd) break;
+		if(name.len==End) break;
 		var val=va_arg(args,var);
 		map_add(&ret,name,val);
 		name=va_arg(args,var);
@@ -220,7 +220,7 @@ string rows_s(const map in){
 	return vec_s(lines,"\n");
 }
 string map_s(map in,char* sepkey,char* sepval){
-	if(!in.keys.len) return (string){0};
+	if(!in.keys.len) return NullStr;
 	string sep1=c_(sepkey);
 	string sep2=c_(sepval);
 	int len=in.keys.len*(sep1.len+sep2.len)+vec_strlen(in.keys)+vec_strlen(in.vals);
@@ -236,9 +236,9 @@ string map_s(map in,char* sepkey,char* sepval){
 }
 map s_rows(string in){
 	vector lines=s_vec(trim(in),"\n");
-	if(!lines.len) return (map){0};
+	if(!lines.len) return NullMap;
 	vector keys=s_vec(lines.var[0],"\t");
-	if(!keys.len) return (map){0};
+	if(!keys.len) return NullMap;
 	vector index=keys_index(keys);
 	vector vals=vec_new();
 	for(int i=1; i<lines.len; i++){

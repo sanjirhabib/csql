@@ -2,11 +2,11 @@
 #include "browse.h"
 
 /*header
-typedef struct s_browse_data {
+typedef struct s_browse {
 	window win;
 	window view;
 	vector wins;
-	map cols;
+	map fields;
 	cursor curs;
 	cross rs;
 	map changed;
@@ -15,7 +15,7 @@ typedef struct s_browse_data {
 	int exit;
 	int rowid;
 	int can_search;
-} browse_data;
+} browse;
 
 end*/
 
@@ -26,38 +26,72 @@ void vecpair_free(pair* pair){
 	vec_free(&pair->head);
 	vec_free(&pair->tail);
 }
-void browse_free(browse_data* e){
+void browse_free(browse* e){
 	cross_free(&e->rs);
 	_free(&e->wins);
-	map_free_ex(&e->cols,field_free);
+	map_free_ex(&e->fields,field_free);
 	map_free_ex(&e->changed,vecpair_free);
 }
-
-browse_data cols_browsedata(map cols,window win){
-	return (browse_data){
-		.win=win,
-		.view={
-			.height=win.height-2,
-		},
-		.cols=cols,
-		.curs={
-			.total.x=cols.keys.len,
-			.limit.len=win.height*4,
-			.curr.x=min(cols.keys.len,1),
-			.curr.y=0,
-			.cols=ro(cols.keys),
-		},
+browse browse_new(){
+	return (browse){
 		.changed=map_new_ex(sizeof(pair)),
 		.rowid=1,
 		.reload=1,
 	};
 }
-void browse_colwidth(browse_data* e){
-	_free(&e->wins);
-	e->wins=cols_wins(e->cols.keys,e->rs,e->win);
-	cols_aligns(e->cols,e->rs);
+void browse_setwin(browse* e, window win){
+	e->win=win;
+	e->view.height=win.height-2;
+	e->curs.limit.len=e->win.height*4;
 }
-browse_data* browse_key(browse_data* e,int c){
+void browse_setrows(browse* e,map rows){
+
+	//+add new
+	rows.vals=splice(rows.vals,rows.vals.len,0,vec_new_ex(sizeof(var),rows.keys.len),NULL);
+	//add rowid__
+	rows=rows_addcol(rows,-1,Null,c_("rowid__"));
+
+	//search
+	if(e->can_search){
+		vector searching=cross_disownrow(e->rs,0,Null);
+		if(e->curs.total.y){
+			if(!searching.len) searching=vec_new_ex(sizeof(var),rows.keys.len);
+			rows.vals=splice(rows.vals,0,0,searching,NULL);
+			e->curs.total.y++;
+			e->can_search=1;
+		}
+		else{
+			e->can_search=0;
+			vec_free(&searching);
+		}
+	}
+
+	//update rowid
+	for(int i=0; i<rows.vals.len/rows.keys.len; i++){
+		rows.vals.var[i*rows.keys.len+rows.keys.len-1].i=e->rowid++;
+	}
+	e->curs.total.y++;
+
+	e->rs=cross_reinit(e->rs,rows);
+}
+void browse_setfield(browse* e,map fields){
+	map_free_ex(&e->fields,field_free);
+	_free(&e->wins);
+	e->fields=fields;
+	e->curs=(cursor){
+		.total.x=fields.keys.len,
+		.total.y=e->curs.total.y,
+		.limit.len=e->win.height*4,
+		.curr.x=min(fields.keys.len,1),
+		.cols=ro(fields.keys),
+	};
+}
+void browse_colwidth(browse* e){
+	_free(&e->wins);
+	e->wins=cols_wins(e->fields.keys,e->rs,e->win);
+	cols_aligns(e->fields,e->rs);
+}
+browse* browse_key(browse* e,int c){
 	int reload=0;
 
 	e->curs.curr=cursor_key(e->curs.curr,c,e->view.height,(int4){.x=0,.x2=e->curs.total.x,.y=-1,.y2=e->curs.total.y});
@@ -76,7 +110,7 @@ browse_data* browse_key(browse_data* e,int c){
 		}
 		else{
 			string ret=cell_edit(e);
-			if(ret.len!=Fail && e->can_search && e->curs.curr.y==0)
+			if(ret.len!=End && e->can_search && e->curs.curr.y==0)
 				e->reload=1;
 		}
 	}
@@ -113,31 +147,39 @@ browse_data* browse_key(browse_data* e,int c){
 	}
 	return e;
 }
-int confirm_save(browse_data* e){
+int confirm_save(browse* e){
+	if(e->save) return 1;
 	if(!e->changed.keys.len) return 0;
-	if(e->save){
-		e->save=0;
-		return 1;
-	}
+	if(!e->exit && !e->reload) return 0;
+
 	win_clear(e->win);
 	string ans=win_menu(e->win,s_map(c_("yes Save no Discard redit Re-edit")),c_("Save changed?"));
-	if(eq_c(ans,"no")){
+	if(!ans.len){
+		if(e->exit){
+			map_free_ex(&e->changed,vecpair_free);
+		}
+		e->reload=0;
+		return 0;
+	}
+	else if(eq_c(ans,"no")){
 		map_free_ex(&e->changed,vecpair_free);
 		return 0;
 	}
 	else if(eq_c(ans,"yes")){
+		e->save=1;
 		return 1;
 	}
 	e->reload=0;
 	e->exit=0;
 	return 0;
 }
-browse_data* browse_view(browse_data* e){
+browse* browse_view(browse* e){
+	if(!e->wins.len) browse_colwidth(e);
 	e->view=cursor_view((int2){.y=max(e->curs.curr.y,0), .x=e->curs.curr.x},e->view,e->win.width,e->wins);
 	return e;
 }
 
-void table_title(browse_data* e,string table){
+void table_title(browse* e,string table){
 	string title=cat(c_("Table: "),ro(table));
 	int half=e->win.width/2;
 	win_title(win_resize(e->win,WinRight,-half),title,WinLeft);
@@ -153,12 +195,12 @@ void table_title(browse_data* e,string table){
 	vis_goto(e->win.x+half,e->win.y);
 	s_out(s_pad(temp,half,WinRight));
 }
-void browse_body(browse_data* e){
+void browse_body(browse* e){
 	for(int i=e->view.x; i<e->view.x+e->view.width; i++){
 		string col=get(e->curs.cols,i);
 		int colno=keys_idx(e->rs.rows.keys,e->rs.rows.index,col);
 		window* w=e->wins.ptr;
-		field f=*(field*)map_getp(e->cols,col);
+		field f=*(field*)map_getp(e->fields,col);
 		if(e->curs.curr.y==-1){
 			if(i==e->curs.curr.x){ //cursor
 				s_out(vis_bg(0,180,0));
@@ -179,7 +221,7 @@ void browse_body(browse_data* e){
 
 			var rowid=cross_get(e->rs,rno-e->curs.limit.from,Null,0,c_("rowid__"));
 			pair* pp=map_getp(e->changed,rowid);
-			var changed=pp ? pp->tail.var[colno] : (var){.len=IsFail};
+			var changed=pp ? pp->tail.var[colno] : VarEnd;
 
 			string v=get(vs,j);
 
@@ -190,7 +232,7 @@ void browse_body(browse_data* e){
 			}
 			else if(e->can_search && rno==0) //search line
 				s_out(vis_fg(255,255,255));
-			else if(changed.len!=IsFail)
+			else if(changed.len!=End)
 				s_out(vis_bg(90,30,30));
 			else if(rno==e->curs.curr.y)
 				s_out(vis_bg(30,30,30));
@@ -214,7 +256,7 @@ void browse_body(browse_data* e){
 		});
 	}
 }
-void cell_log(browse_data* e,string name,string val){
+void cell_log(browse* e,string name,string val){
 	int rowno=curs_rowno(e->curs);
 
 	if(e->can_search && !rowno) return; //don't log search line
@@ -229,13 +271,13 @@ void cell_log(browse_data* e,string name,string val){
 		temp->head=vec_dup(cross_row(e->rs,rowno,Null).vals);
 	if(!temp->tail.len){
 		vector v=vec_new_ex(sizeof(var),cross_ncols(e->rs));
-		for(int i=0; i<v.len; i++) v.var[i].len=IsFail;
+		for(int i=0; i<v.len; i++) v.var[i].len=End;
 		temp->tail=v;
 	}
 	int nid=cross_colno(e->rs,name);
-	if(nid!=Fail) temp->tail.var[nid]=ro(val);
+	if(nid!=End) temp->tail.var[nid]=ro(val);
 }
-void cell_set(browse_data* e,string name,string val){
+void cell_set(browse* e,string name,string val){
 	if(!name.len) name=curs_colname(e->curs);
 	cell_log(e,name,val);
 	e->rs=cross_set(e->rs,curs_rowno(e->curs),Null,0,name,val);
@@ -246,24 +288,24 @@ void cell_set(browse_data* e,string name,string val){
 		e->curs.total.y++;
 	}
 }
-string cell_get(browse_data* e,string name){
+string cell_get(browse* e,string name){
 	return cross_get(e->rs,curs_rowno(e->curs),Null,0,name.len ? name : curs_colname(e->curs));
 }
-string cell_combo(browse_data* e,vector suggests){
+string cell_combo(browse* e,vector suggests){
 	window w=cursor_win(e->curs.curr,e->view,e->wins);
 	string colname=curs_colname(e->curs);
 	string val=cell_get(e,colname);
-	editwin ewin=editwin_new(w,val);
+	ewin ewin=ewin_new(w,val);
 	edit_combo(&ewin,suggests);
-	return editwin_close(&ewin);
+	return ewin_close(&ewin);
 }
-string cell_edit(browse_data* e){
+string cell_edit(browse* e){
 	window w=cursor_win(e->curs.curr,e->view,e->wins);
 	string colname=curs_colname(e->curs);
 	string val=cell_get(e,colname);
-	editwin ewin=editwin_new(w,val);
+	ewin ewin=ewin_new(w,val);
 	edit_input(&ewin);
-	string newval=editwin_close(&ewin);
-	if(newval.len!=Fail) cell_set(e,colname,newval);
+	string newval=ewin_close(&ewin);
+	if(newval.len!=End) cell_set(e,colname,newval);
 	return newval;
 }

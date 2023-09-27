@@ -117,7 +117,7 @@ int vec_count(vector in,char* search){
 int vec_search(vector in,string s){
 	for(int i=0; i<in.len; i++)
 		if(eq(in.var[i],s)) return i;
-	return Fail;
+	return End;
 }
 string vec_start(vector toks,char* start){
 	for(int i=0; i<toks.len; i++){
@@ -142,11 +142,11 @@ vector vec_split(vector in,char* words){
 	int from=0;
 	for(int i=0; i<in.len; i++){
 		if(is_word(in.var[i],words)){
-			if(i>from) vec_add(&ret,slice(in,from,i-from));
+			if(i>from) vec_add(&ret,sub(in,from,i-from));
 			from=i;
 		}
 	}
-	if(from<in.len) vec_add(&ret,slice(in,from,in.len-from));
+	if(from<in.len) vec_add(&ret,sub(in,from,in.len-from));
 	return ret;
 }
 char* jump_nonchar(char* ptr, char* end,char* chars){

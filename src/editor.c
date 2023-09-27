@@ -23,7 +23,7 @@ typedef enum {
 	KeyCtrlHome, KeyCtrlEnd, KeyPgUp, KeyPgDown,
 	KeyCtrl, KeyOther
 } Keyboard;
-typedef enum EditType { EditFail, EditInsert, EditDelete } EditType;
+typedef enum EditType { EditEnd, EditInsert, EditDelete } EditType;
 typedef struct s_edittask {
 	int slno;
 	EditType type;
@@ -52,11 +52,11 @@ end*/
 edittask apply_edit(edittask task,editor* e){
 	if(task.type==EditDelete){
 		int lastlinelen=e->lines.var[task.y2].len;
-		vector deletedlines=slice(e->lines,task.y,task.y2-task.y+1);
+		vector deletedlines=sub(e->lines,task.y,task.y2-task.y+1);
 		string textall=vec_s(deletedlines,"\n");
 		int deletedlen=textall.len-task.x-lastlinelen+task.x2; //+deletedlines.len-1;
-		task.text=s_own(slice(textall,task.x,deletedlen));
-		string remaining=s_own(cat(slice(textall,0,task.x),slice(textall,task.x+deletedlen,textall.len-task.x-deletedlen)));
+		task.text=s_own(sub(textall,task.x,deletedlen));
+		string remaining=s_own(cat(sub(textall,0,task.x),sub(textall,task.x+deletedlen,textall.len-task.x-deletedlen)));
 		// delete all lines, expect one
 		vec_del_ex(&e->lines,task.y,deletedlines.len-1,_free);
 		_free(&e->lines.var[task.y]);
@@ -68,8 +68,8 @@ edittask apply_edit(edittask task,editor* e){
 	else if(task.type==EditInsert){
 		vector lines=s_vec(task.text,"\n");
 		string currline=e->lines.var[task.y];
-		lines.var[0]=cat(slice(currline,0,task.x),lines.var[0]);
-		lines.var[lines.len-1]=cat(lines.var[lines.len-1],slice(currline,task.x,currline.len-task.x));
+		lines.var[0]=cat(sub(currline,0,task.x),lines.var[0]);
+		lines.var[lines.len-1]=cat(lines.var[lines.len-1],sub(currline,task.x,currline.len-task.x));
 		vec_own(lines);
 		task.y2=e->curr.y=task.y+lines.len-1;
 		task.x2=e->curr.x=lines.var[lines.len-1].len-currline.len+task.x;
@@ -118,24 +118,24 @@ editor* editor_readonly(editor* e,int c){
 editor* editor_key(editor* e,int c){
 	string curr=e->lines.var[e->curr.y];
 
-	if(e->selected.x==Fail && (c==KeyShiftCtrlLeft||c==KeyShiftCtrlRight||c==KeyShiftLeft||c==KeyShiftRight||c==KeyShiftDown||c==KeyShiftUp)){
+	if(e->selected.x==End && (c==KeyShiftCtrlLeft||c==KeyShiftCtrlRight||c==KeyShiftLeft||c==KeyShiftRight||c==KeyShiftDown||c==KeyShiftUp)){
 		e->selected.x=e->curr.x;
 		e->selected.y=e->curr.y;
 	}
-	if(c==27 && e->selected.x!=Fail){
-		e->selected.x=Fail;
+	if(c==27 && e->selected.x!=End){
+		e->selected.x=End;
 	}
-	else if(e->selected.x!=Fail && (c==KeyLeft||c==KeyUp)){
+	else if(e->selected.x!=End && (c==KeyLeft||c==KeyUp)){
 		int4 s=select_ordered(e->selected);
 		e->curr.x=s.x;
 		e->curr.y=s.y;
-		e->selected.x=Fail;
+		e->selected.x=End;
 	}
-	else if(e->selected.x!=Fail && (c==KeyRight||c==KeyDown)){
+	else if(e->selected.x!=End && (c==KeyRight||c==KeyDown)){
 		int4 s=select_ordered(e->selected);
 		e->curr.x=s.x2;
 		e->curr.y=s.y2;
-		e->selected.x=Fail;
+		e->selected.x=End;
 	}
 	else if(c==KeyLeft||c==KeyShiftLeft){
 		if(e->curr.x||e->curr.y){
@@ -180,26 +180,26 @@ editor* editor_key(editor* e,int c){
 		}
 	}
 	else if(c==KeyCtrl+'c'){ //copy
-		if(e->selected.x!=Fail){
+		if(e->selected.x!=End){
 			_free(&e->clipboard);
 			int4 s=select_ordered(e->selected);
-			string textall=vec_s(slice(e->lines,s.y,s.y2-s.y+1),"\n");
+			string textall=vec_s(sub(e->lines,s.y,s.y2-s.y+1),"\n");
 			int deletedlen=textall.len-s.x-e->lines.var[s.y2].len+s.x2;
-			e->clipboard=_dup(slice(textall,s.x,deletedlen));
-			e->selected.x=Fail;
+			e->clipboard=_dup(sub(textall,s.x,deletedlen));
+			e->selected.x=End;
 		}
 	}
 	else if(c==KeyCtrl+'x'){ //cut
-		if(e->selected.x!=Fail){
+		if(e->selected.x!=End){
 			int4 s=select_ordered(e->selected);
 			edit_del(s.x,s.y,s.x2,s.y2,e,0);
 			_free(&e->clipboard);
 			e->clipboard=_dup(((edittask*)getp(e->undobuff,e->undobuff.len-1))->text);
-			e->selected.x=Fail;
+			e->selected.x=End;
 		}
 	}
-	else if(c==127||(c=='\b' && e->selected.x!=Fail)){//backspace
-		if(e->selected.x==Fail){
+	else if(c==127||(c=='\b' && e->selected.x!=End)){//backspace
+		if(e->selected.x==End){
 			if(e->curr.x||e->curr.y){
 				int fromx=e->curr.x-1;
 				int fromy=e->curr.y;
@@ -213,27 +213,27 @@ editor* editor_key(editor* e,int c){
 		else{
 			int4 s=select_ordered(e->selected);
 			edit_del(s.x,s.y,s.x2,s.y2,e,0);
-			e->selected.x=Fail;
+			e->selected.x=End;
 		}
 	}
 	else if(c==KeyDel){ //delete
-		if(e->selected.x==Fail){
+		if(e->selected.x==End){
 			if(e->curr.x<e->lines.var[e->curr.y].len || e->curr.y<e->lines.len)
 				edit_del(e->curr.x,e->curr.y,e->curr.x+1,e->curr.y,e,0);
 		}
 		else{
 			int4 s=select_ordered(e->selected);
 			edit_del(s.x,s.y,s.x2,s.y2,e,0);
-			e->selected.x=Fail;
+			e->selected.x=End;
 		}
 	}
 	else if(c==KeyCtrl+'v'){ //paste
 		if(e->clipboard.len){
 			int sl=0;
-			if(e->selected.x!=Fail){
+			if(e->selected.x!=End){
 				int4 s=select_ordered(e->selected);
 				edit_del(s.x,s.y,s.x2,s.y2,e,sl++);
-				e->selected.x=Fail;
+				e->selected.x=End;
 			}
 			e=edit_add(e->curr.x,e->curr.y,ro(e->clipboard),e,sl);
 		}
@@ -243,7 +243,7 @@ editor* editor_key(editor* e,int c){
 		e->curr.x=e->selected.x2;
 		e->curr.y=e->selected.y2;
 	}
-	else if(c==KeyShiftTab && e->selected.x!=Fail){
+	else if(c==KeyShiftTab && e->selected.x!=End){
 		int4 s=select_ordered(e->selected);
 		int2 cursorpos=e->curr;
 		for(int i=s.y; i<s.y2; i++){
@@ -254,7 +254,7 @@ editor* editor_key(editor* e,int c){
 		if(e->selected.x>0) e->selected.x--;
 		e->curr=cursorpos;
 	}
-	else if(c=='\t' && e->selected.x!=Fail){
+	else if(c=='\t' && e->selected.x!=End){
 		int4 s=select_ordered(e->selected);
 		int2 cursorpos=e->curr;
 		for(int i=s.y; i<s.y2; i++){
@@ -334,31 +334,31 @@ editor* editor_key(editor* e,int c){
 	}
 	else if(c=='\r'||c=='\n'){//newline
 		int slno=0;
-		if(e->selected.x!=Fail){
+		if(e->selected.x!=End){
 			int4 s=select_ordered(e->selected);
 			edit_del(s.x,s.y,s.x2,s.y2,e,slno++);
-			e->selected.x=Fail;
+			e->selected.x=End;
 		}
 		int indent=indent_level(curr);
 		int oldx=e->curr.x;
 		e=edit_add(e->curr.x,e->curr.y,c_("\n"),e,slno++);
 		if(indent && oldx>=indent)
-			e=edit_add(0,e->curr.y,slice(e->lines.var[e->curr.y-1],0,indent),e,slno++);
+			e=edit_add(0,e->curr.y,sub(e->lines.var[e->curr.y-1],0,indent),e,slno++);
 	}
 	else if(c==KeyOther){
 	}
 	else if(c>=' ' && c<256 || c=='\t'){
 		int slno=0;
-		if(e->selected.x!=Fail){
+		if(e->selected.x!=End){
 			int4 s=select_ordered(e->selected);
 			edit_del(s.x,s.y,s.x2,s.y2,e,slno++);
-			e->selected.x=Fail;
+			e->selected.x=End;
 		}
 		char temp[2]={c,0};
 		e=edit_add(e->curr.x,e->curr.y,c_(temp),e,slno);
 	}
 
-	if(e->selected.x!=Fail){
+	if(e->selected.x!=End){
 		e->selected.x2=e->curr.x;
 		e->selected.y2=e->curr.y;
 	}
@@ -386,7 +386,7 @@ int indent_level(string in){
 }
 editor editor_new(){
 	return (editor){
-		.selected.x=Fail,
+		.selected.x=End,
 		.undobuff={.datasize=sizeof(edittask)},
 	};
 }

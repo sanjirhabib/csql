@@ -6,22 +6,24 @@
 #include <stdarg.h>
 #include <math.h>
 #include <ctype.h>
+#include <assert.h>
 #include <sys/stat.h>
 
 #include "var.h"
 
 
+#define End (-1)
+#define VarEnd (var){.len=End}
 #define ls(x) (x).len>0 ? (x).len : 0,(x).str
-#define cat_all(ret, ...) _cat_all(ret, ##__VA_ARGS__,end_new())
-#define vec_all(ret, ...) _vec_all(ret, ##__VA_ARGS__,end_new())
-#define vec_append(ret, ...) _vec_append(ret, ##__VA_ARGS__,end_new())
+#define cat_all(ret, ...) _cat_all(ret, ##__VA_ARGS__,VarEnd)
+#define vec_all(ret, ...) _vec_all(ret, ##__VA_ARGS__,VarEnd)
+#define vec_append(ret, ...) _vec_append(ret, ##__VA_ARGS__,VarEnd)
 #define min(x,y) (x<y?x:y)
 #define max(x,y) (x>y?x:y)
 #define between(x,y,z) ((y)<(x) ? (x) : ((y)>(z) ? (z) : (y))) 
 #define Null (var){0}
 #define NullVec (var){.datasize=sizeof(var)}
 #define NullStr (var){.datasize=1}
-#define Fail (-1)
 #define map_each(x,y,z) z=x.vals.ptr; for(int y=0; y<x.keys.len; y++)
 #define each(x,y,z) z=x.ptr; for(int y=0; y<x.len; y++)
 
@@ -33,9 +35,7 @@ typedef struct s_range {
 } range;
 typedef enum {
 	IsNull=0,
-	IsFail=-1,
 	IsPtr=-2,
-	IsEnd=-3,
 	IsInt=-4,
 	IsMap=-7,
 	IsDouble=-8
@@ -98,7 +98,8 @@ var vec_val(vector in, int index){
 }
 void* vec_p(vector in,int index){
 	if(index<0||index>=in.len) return NULL;
-	return in.str+max(in.datasize,1)*index;
+	assert(in.datasize);
+	return in.str+in.datasize*index;
 }
 int atoil(var in){
 	if(in.len>32||in.len<=0) return 0;
@@ -156,7 +157,7 @@ var i_(int val){
 	return (var){ .i=val, .len=IsInt };
 }
 string ptr_s(void* in){
-	return in ? *(string*)in : Null;
+	return in ? *(string*)in : NullStr;
 }
 void* vec_last(vector in){
 	return vec_p(in,in.len-1);
@@ -217,7 +218,8 @@ vector vec_del_ex(vector* in,int idx,int len,void* callback){
 		vec_free_ex(in,callback);
 		return *in;
 	}
-	int datasize=max(in->datasize,1);	
+	assert(in->datasize);
+	int datasize=in->datasize;	
 	if(callback){
 		for(int i=r.from; i<r.from+r.len; i++){
 			((void(*)(void*))callback)((void*)(in->str+datasize*i));
@@ -234,11 +236,10 @@ vector vec_del_ex(vector* in,int idx,int len,void* callback){
 	return *in;
 }
 vector splice(vector in,int from,int len,vector by,void* callback){
+	if(!in.len) return by;
+
 	if(in.readonly) in=_dup(in);
-	int datasize=in.datasize ? in.datasize : by.datasize;
-	datasize=max(datasize,1);
-	if(by.len && max(by.datasize,1)!=datasize)
-		die("splice datasize doesn't match");
+	assert(in.datasize);
 	if(callback){
 		for(int i=from; i<from+len; i++){
 			((void(*)(void*))callback)(vec_p(in,i));
@@ -247,14 +248,15 @@ vector splice(vector in,int from,int len,vector by,void* callback){
 	int add=by.len ? by.len-len : -len;
 	if(add>0){
 		in=resize(in,in.len+add);
-		memmove(vec_p(in,from+len+add),vec_p(in,from+len),datasize*(in.len-from-len-add));
+		memmove(vec_p(in,from+len+add),vec_p(in,from+len),in.datasize*(in.len-from-len-add));
 	}
 	else if(add<0){
-		memmove(vec_p(in,from+len+add),vec_p(in,from+len),datasize*(in.len-from-len));
+		memmove(vec_p(in,from+len+add),vec_p(in,from+len),in.datasize*(in.len-from-len));
 		in=resize(in,in.len+add);
 	}
 	if(by.len){
-		memcpy(vec_p(in,from),by.str,by.len*datasize);
+		assert(in.datasize==by.datasize);
+		memcpy(vec_p(in,from),by.str,by.len*in.datasize);
 		_free(&by);
 	}
 	return in;
@@ -263,7 +265,7 @@ vector vec_new(){
 	return (vector){.datasize=sizeof(var)};
 }
 vector vec_new_ex(int datasize,int len){
-	vector ret=(vector){.datasize=max(datasize,1)};
+	vector ret=(vector){.datasize=datasize};
 	if(len) ret=resize(ret,len);
 	return ret;
 }
@@ -272,28 +274,11 @@ int char_count(string in,char c){
 	for(int i=0; i<in.len; i++) if(in.str[i]==c) ret++;
 	return ret;
 }
-void* vec_insert(vector* in, int position, int count, void* data){
-	int len=in->len-position;
-	if(!len) return vec_add_ex(in,count,data);
-	int datasize=max(in->datasize,1);
-	*in=resize(*in,in->len+count);
-	void* space=in->str+datasize*position;	
-	memmove(space+datasize*count,space,datasize*len);
-	memcpy(space,data,datasize*count);
-	return space;
-}
 vector vec_set(vector in,int idx,var val){
 	if(idx<0||idx>=in.len) return in;
 	_free(&in.var[idx]);
 	in.var[idx]=val;
 	return in;
-}
-void* vec_add_ex(vector* in,int count,void* data){
-	if(!in->datasize) in->datasize=sizeof(var);
-	if(count<1) return NULL;
-	void* ret=grow(in,count);
-	if(data) memcpy(ret,data,in->datasize*count);
-	return ret;
 }
 void* vec_addp(vector* in,void* data){
 	return vec_add_ex(in,1,data);
@@ -344,7 +329,7 @@ string c_dup(char* in){
 	return s_new(in,in ? strlen(in) : 0);
 }
 string s_new(void* str,int len){
-	string ret={0};
+	string ret=NullStr;
 	ret=resize(ret,len);
 	if(str && len) memcpy(ret.str,str,len);
 	return ret;
@@ -365,29 +350,44 @@ char* grow(string* in,int len){
 	return in->str+(in->len-len)*in->datasize;
 }
 string resize(string in,int len){
-	int datasize=max(in.datasize,1);
+	assert(in.datasize);
 	void* ret=in.readonly
-		? memcpy(mem_resize(NULL,len*datasize,0),in.str,min(len,in.len)*datasize)
-		: mem_resize(in.str,len*datasize,in.len*datasize);
+		? memcpy(mem_resize(NULL,len*in.datasize,0),in.str,(int)(min(len,in.len)*in.datasize))
+		: mem_resize(in.str,len*in.datasize,in.len*in.datasize);
 	return (string){
 		.ptr=ret,
 		.len=len,
-		.datasize=datasize,
+		.datasize=in.datasize,
 	};
+}
+void* vec_add_ex(vector* in,int count,void* data){
+	assert(in->datasize);
+	if(count<1) return NULL;
+	void* ret=grow(in,count);
+	if(data) memcpy(ret,data,in->datasize*count);
+	return ret;
+}
+void* add(var* in,var val){
+	assert(in->datasize);
+	if(!val.len) return NULL;
+	void* ret=memcpy(grow(in,val.len),val.str,val.datasize*val.len);
+	_free(&val);
+	return ret;
 }
 string cat(string str1,string str2){
 	if(!str2.len) return str1;
+	if(!str1.len) return str2;
 
-	int datasize=max(str1.datasize,1);
-	if(datasize!=max(str2.datasize,1)) die("cat called on unequal datasize");
+	assert(str1.datasize);
+	assert(str2.datasize==str2.datasize);
 
 	str2=_s(str2);
-	if(str1.str+str1.len*datasize==str2.str){ //when string was previously split, ptrs are side by side
+	if(str1.str+str1.len*str1.datasize==str2.str){ //when string was previously split, ptrs are side by side
 		str1.len+=str2.len;
 		return str1;
 	}
 	void* ptr=grow(&str1,str2.len);
-	memcpy(ptr,str2.str,str2.len*datasize);
+	memcpy(ptr,str2.str,str2.len*str1.datasize);
 	_free(&str2);
 	return str1;
 }
@@ -422,8 +422,8 @@ vector s_vec(string in,char* by){
 }
 vector s_vec_ex(string in,char* by,int limit){
 	vector ret=vec_new();
-	string r={0};
-	while((r=s_upto(in,by,r)).len!=Fail){
+	string r=NullStr;
+	while((r=s_upto(in,by,r)).len!=End){
 		vec_add(&ret,r);
 		if(limit && ret.len==limit-1){
 			vec_add(&ret,s_rest(in,by,r));
@@ -432,10 +432,10 @@ vector s_vec_ex(string in,char* by,int limit){
 	}
 	return ret;
 }
-string s_cs(string in){
+string s_c(string in){
 	string ret=s_new(NULL,in.len+1);
 	memcpy(ret.str,in.str,in.len);
-	_free(&in); //added in 2023! without recursive fix
+	_free(&in);
 	return ret;
 }
 void s_catchar(string* in,char c){
@@ -450,7 +450,7 @@ string s_splice(string in, int offset, int len,string replace){
 	return splice(in,offset,len,replace,NULL);
 }
 string s_del(string in, int offset, int len){
-	return s_splice(in,offset,len,Null);
+	return s_splice(in,offset,len,NullStr);
 }
 string c_copy(char* in){
 	return s_new(in,strlen(in));
@@ -459,26 +459,21 @@ string s_copy(string in){
 	return s_new(in.str,in.len);
 }
 string head(string in, int len){
-	return slice(in,0,len);
+	return sub(in,0,len);
 }
 string tail(string in, int len){
-	return slice(in,len,in.len-len);
+	return sub(in,len,in.len-len);
 }
-string slice(string in, int from, int len){
+string sub(string in, int from, int len){
+	if(!in.len) return in;
+	assert(in.datasize);
 	range r=len_range(in.len,from,len);
 	return r.len ? (string){
-		.str=in.str+r.from*max(in.datasize,1),
+		.str=in.str+r.from*in.datasize,
 		.len=r.len,
 		.datasize=in.datasize,
 		.readonly=1,
-	} : Null;
-}
-void msg(char* format,...){
-	va_list args;
-	va_start(args, format);
-	vfprintf(stderr,format,args);
-	fprintf(stderr,"\r\n");
-	va_end(args);
+	} : NullStr;
 }
 string print_s(char* format,...){
 	va_list args;
@@ -516,33 +511,20 @@ string s_lower(string in){
 	}
 	return in;
 }
-vector vec_cut(vector* in,int from, int len){
-	vector ret=vec_new_ex(in->datasize,0);
-	range r=len_range(in->len,from,len);
-	if(!r.len) return ret;
-	if(!r.from && r.len==in->len){
-		ret=*in;
-		*in=vec_new_ex(in->datasize,0);
-		return ret;
-	}
-	vec_add_ex(&ret,r.len,vec_p(*in,r.from));
-	vec_del_ex(in,r.from,r.len,NULL);
-	return ret;
-}
 pair cut_any(string in,char* any){
 	pair ret={.head=in};
 	int i=0;
 	while(i<in.len && !strchr(any,in.str[i])) i++;
 	ret.head.len=i;
 	while(i<in.len && strchr(any,in.str[i])) i++;
-	ret.tail=slice(in,i,in.len);
+	ret.tail=sub(in,i,in.len);
 	return ret;
 }
 pair cut(string in,char* by){
 	string s=s_upto(in,by,Null);
 	return (pair){
 		.head=s,
-		.tail=slice(in,s.len+strlen(by),in.len),
+		.tail=sub(in,s.len+strlen(by),in.len),
 	};
 }
 string cutp(string* in,char* by){
@@ -550,9 +532,7 @@ string cutp(string* in,char* by){
 	*in=ret.tail;
 	return ret.head;
 }
-var end_new(){
-	return (var){.len=IsEnd};
-}
+
 void buff_add(pair* in,var add){
 	if(!in->tail.len) return;
 	int len=_c(add,in->tail.str);
@@ -577,7 +557,7 @@ string cl_(const void* in,int len){
 		.len=len,
 		.datasize=1,
 		.readonly=1,
-	} : Null;
+	} : NullStr;
 }
 string c_(const char* in){
 	return cl_(in,in ? strlen(in) : 0);
@@ -589,8 +569,7 @@ int _c(var in,char* out){
 	}
 	switch(in.len){
 		case IsPtr : if(out) memcpy(out,"<ptr>",6); return 5;
-		case IsEnd : if(out) memcpy(out,"<end>",6); return 5;
-		case IsFail : if(out) memcpy(out,"<fail>",6); return 5;
+		case End : if(out) memcpy(out,"<end>",6); return 5;
 		case IsInt :
 			int len=snprintf(0,0,"%d",in.i);
 			if(!out) return len;
@@ -641,7 +620,7 @@ string s_rest(string in,char* sep,string r){
 	return r;
 }
 string s_upto(string in,char* sep,string r){
-	if(!in.len) return (string){.len=Fail};
+	if(!in.len) return (string){.len=End};
 	int seplen=strlen(sep);
 	r.str+=r.len;
 	if(!r.str){
@@ -655,7 +634,7 @@ string s_upto(string in,char* sep,string r){
 		return r;
 	}
 	if(r.str>in.str+in.len){
-		r.len=Fail;
+		r.len=End;
 		return r;
 	}
 
@@ -698,7 +677,7 @@ string format_vargs(char* fmt,va_list args){
 	string r={0};
 	int total=0;
 	var vfmt=c_(fmt);
-	while((r=s_upto(vfmt,"{}",r)).len!=Fail) total++;
+	while((r=s_upto(vfmt,"{}",r)).len!=End) total++;
 	total-=1;
 	if(!total) return vfmt;
 
@@ -730,7 +709,7 @@ vector _vec_append(string ret, ...){
 	va_start(args,ret);
 	while(1){
 		var val=va_arg(args,var);
-		if(val.len==IsEnd) break;
+		if(val.len==End) break;
 		vec_add(&ret,val);
 	}
 	va_end(args);
@@ -742,7 +721,7 @@ vector _vec_all(string in,...){
 	va_start(args,in);
 	var val=in;
 	while(1){
-		if(val.len==IsEnd) break;
+		if(val.len==End) break;
 		vec_add(&ret,val);
 		val=va_arg(args,var);
 	}
@@ -757,14 +736,14 @@ string _cat_all(string in,...){
 	int len=_len(in);
 	while(1){
 		var sub=va_arg(args,var);
-		if(sub.len==IsEnd) break;
+		if(sub.len==End) break;
 		len+=_len(sub);
 	}
 	pair ret=buff_new(len);
 	buff_add(&ret,in);
 	while(1){
 		var sub=va_arg(args2,var);
-		if(sub.len==IsEnd) break;
+		if(sub.len==End) break;
 		buff_add(&ret,sub);
 	}
 	va_end(args2);
@@ -773,7 +752,7 @@ string _cat_all(string in,...){
 }
 string s_dequote(string in,char* qchars){
 	if(in.len<2) return in;
-	if(strchr(qchars,in.str[0])) return slice(in,1,-1);
+	if(strchr(qchars,in.str[0])) return sub(in,1,-1);
 	return in;
 }
 string s_unescape_ex(string in,char* find, char* replace){
@@ -867,14 +846,16 @@ void trace(char* format,...){
 #endif
 }
 var _dup(var in){
+	if(!in.len) return in;
+	assert(in.datasize);
 	var ret=in;
 	ret.readonly=0;
-	ret.datasize=max(ret.datasize,1);
+	ret.datasize=ret.datasize;
 	ret.ptr=memcpy(mem_resize(NULL,ret.len*ret.datasize,0),in.str,ret.len*ret.datasize);
 	return ret;
 }
 int is_error(var in){
-	return in.len==IsFail;
+	return in.len==End;
 }
 int is_char(char c,int alpha,int num,char* extra){
 	if(alpha && (c>='a' && c<='z' || c>='A' && c<='Z')) return 1;

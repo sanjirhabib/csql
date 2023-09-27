@@ -1,10 +1,9 @@
-#include "map.h"
 #include "log.h"
+#include "file.h"
 #include "database.h"
-#include "browse.h"
 #include "cmdline.h"
 
-#define COMPILE_DATE "2023-09-26"
+#define COMPILE_DATE "2023-09-28"
 
 /*header
 struct s_args {
@@ -30,7 +29,7 @@ void default_args(){
 	};
 }
 void inifile_args(){
-	string lines=filec_s("/etc/csql.ini");
+	string lines=file_s(c_("/etc/csql.ini"));
 	vector ls=s_vec(lines,"\n");
 	string section={0};
 	each(ls,i,string* ln){
@@ -117,9 +116,7 @@ int csql_main(int argc,char** argv){
 	}
 	cross types=cross_new(s_rows(types_s));
 
-
 	table_list(conn,types);
-
 
 	_free(&types_s);
 	lite_close(conn);

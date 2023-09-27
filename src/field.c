@@ -1,10 +1,11 @@
+#include "var.h"
 #include "cross.h"
 #include "code.h"
+#include "log.h"
 #include "field.h"
 
 /*header
 typedef struct s_field {
-	string id;
 	string name;
 	string type;
 	string title;
@@ -22,6 +23,52 @@ typedef enum {
 } Side;
 end*/
 
+
+int is_date(string in){
+	if(in.len!=10) return 0;
+	if(in.str[4]!='-'||in.str[7]!='-') return 0;
+	if(!is_numeric(sub(in,0,4))) return 0;
+	return 1;
+}
+string val_type(string in){
+	if(is_date(in)) return c_("date");
+	if(is_numeric(in)) return c_("int");
+	if(is_word(in,"debit credit")) return c_("currency");
+	return c_("text");
+}
+string vals_type(vector in,string name){
+	string curr=Null;
+	int no=0;
+	each(in,i,var* val){
+		if(!val[i].len) continue;
+
+		string type=val_type(val[i]);
+
+		if(!curr.len) curr=type;
+		else if(eq(curr,val[i])) return type;	
+		else if(no>=2) return type;
+		no++;
+	}
+	return curr.len ? curr : c_("text");
+}
+map cross_fields(cross in,cross types){
+	vector vals=vec_new_ex(sizeof(field), in.rows.keys.len);
+	field* p=vals.ptr;
+	each(in.rows.keys,i,var* name){
+		field fld={
+			.name=name[i],
+			.type=vals_type(cross_col(in,i,Null),name[i]),
+			.pkey=i ? 0 : 1,
+			.title=name_title(name[i])
+		};
+		p[i]=fld;
+	}
+	return (map){
+		.keys=ro(in.rows.keys),
+		.vals=vals,
+		.index=ro(in.rows.index)
+	};
+}
 map s_fields(string in){
 	vector lines=s_vec(in,"\n");
 	vector vals=vec_new_ex(sizeof(field),0);
@@ -96,10 +143,9 @@ vector field_vec(field* f){
 		i_s(f->pkey),
 		i_s(f->unique),
 		i_s(f->index),
-		Null
+		NullStr
 	);
 }
-
 void field_dump(field* f){
 	msg("{\n\tname: %.*s", ls(f->name));
 	msg("\ttype: %.*s", ls(f->type));
@@ -109,15 +155,15 @@ void field_dump(field* f){
 	msg("\tindex: %d", f->index);
 	msg("}");
 }
-map structure_cols(){
+map structure_fields(){
 	field colmeta[]={
-		{c_("name"),c_("name"), c_("code"),c_("Name"),{0},{0},NULL,50,1,0,0},
-		{c_("type"),c_("type"), c_("int"),c_("Type"),{0},{0},NULL,0,0,0,1},
-		{c_("create"),c_("create"), c_("int"),c_("Create"),{0},{0},NULL,0,0,0,0},
-		{c_("pkey"),c_("pkey"), c_("bool"),c_("PKey"),{0},{0},NULL,0,0,0,1},
-		{c_("unique"),c_("unique"), c_("bool"),c_("Unique"),{0},{0},NULL,0,0,0,1},
-		{c_("index"),c_("index"), c_("bool"),c_("Index"),{0},{0},NULL,0,0,0,1},
-		{c_("meta"),c_("meta"), c_("int"),c_("Meta"),{0},{0},NULL,0,0,0,0},
+		{c_("name"), c_("code"),c_("Name"),{0},{0},NULL,50,1,0,0},
+		{c_("type"), c_("int"),c_("Type"),{0},{0},NULL,0,0,0,1},
+		{c_("create"), c_("int"),c_("Create"),{0},{0},NULL,0,0,0,0},
+		{c_("pkey"), c_("bool"),c_("PKey"),{0},{0},NULL,0,0,0,1},
+		{c_("unique"), c_("bool"),c_("Unique"),{0},{0},NULL,0,0,0,1},
+		{c_("index"), c_("bool"),c_("Index"),{0},{0},NULL,0,0,0,1},
+		{c_("meta"), c_("int"),c_("Meta"),{0},{0},NULL,0,0,0,0},
 	};
 	vector vals=vec_new_ex(sizeof(field), 0);
 	vec_add_ex(&vals, sizeof(colmeta)/sizeof(field),colmeta);
@@ -128,36 +174,15 @@ map fields_rows(map cols){
 	map_each(cols,i,field* f){
 		vals=vec_append(vals,
 		_dup(f[i].name),
-		_dup(f[i].name),
 		_dup(f[i].type),
 		_dup(f[i].create),
 		i_s(f[i].pkey),
 		i_s(f[i].unique),
 		i_s(f[i].index),
-		Null
+		NullStr
 		);
 	}
-	return vec_map(s_vec(c_("id name type create pkey unique index meta"), " "),vals);
-}
-map rows_fields(map cols){
-	vector vals=vec_new();
-	map ret=map_new_ex(sizeof(field));
-	for(int i=0; i<cols.vals.len/cols.keys.len; i++){
-		map row=rows_row(cols, i);
-		if(!map_get(row,c_("name")).len) continue;
-		field f={
-			.id=map_get(row, c_("id")),
-			.name=map_get(row, c_("name")),
-			.type=map_get(row, c_("type")),
-			.create=map_get(row, c_("create")),
-			.pkey=_i(map_get(row, c_("pkey"))),
-			.unique=_i(map_get(row, c_("unique"))),
-			.index=_i(map_get(row, c_("index"))),
-			.meta=map_get(row, c_("meta")),
-		};
-		map_add_ex(&ret, f.name,&f,NULL);
-	}
-	return ret;
+	return vec_map(s_vec(c_("name type create pkey unique index meta"), " "),vals);
 }
 string name_title(string in){
 	string ret=s_new(in.str,in.len);
@@ -207,7 +232,15 @@ string meta_type(string type,int size,string name){
 string field_type(field* fld,cross types){
 	vector creates=cross_col(types,0,c_("create"));
 	for(int i=0; i<creates.len; i++){
+		assert(types.vals.keys.var[i].datasize);
 		if(eq(fld->create,creates.var[i])) return types.vals.keys.var[i];
 	}
-	return Null;
+	return NullStr;
+}
+int is_numeric(string in){
+	if(!in.len) return 0;
+	for(int i=0; i<in.len; i++){
+		if(!is_numeric_char(in.str[i])) return 0;
+	}
+	return 1;
 }

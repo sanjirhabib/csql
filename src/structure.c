@@ -3,24 +3,20 @@
 #include "field.h"
 #include "structure.h"
 
-void structure_reload(browse_data* e,var conn, string table, cross types){
+void structure_reload(browse* e,var conn, string table, cross types){
 	if(!e->reload) return;
+	e->reload=0;
 	map cols=table_fields(conn, ro(table), types);
 	map rows=fields_rows(cols);
-	rows.vals=splice(rows.vals,rows.vals.len,0,vec_new_ex(sizeof(var),rows.keys.len),NULL);
-	rows=rows_addcol(rows,-1,Null,c_("rowid__"));
-	for(int i=0; i<rows.vals.len/rows.keys.len; i++){
-		rows.vals.var[i*rows.keys.len+rows.keys.len-1].i=e->rowid++;
-	}
-	e->curs.total.y+=cols.keys.len+1;
-	e->rs=cross_reinit(e->rs,rows);
+	e->curs.total.y=rows.vals.len/rows.keys.len;
+	browse_setrows(e,rows);
 	map_free_ex(&cols,field_free);
-	e->reload=0;
+	_free(&e->wins);
 }
 int structure_browse(var conn, string table,window win,cross types){
-	browse_data e=cols_browsedata(structure_cols(),win);
-	structure_reload(&e,conn,table,types);
-	browse_colwidth(&e);
+	browse e=browse_new();
+	browse_setwin(&e,win);
+	browse_setfield(&e,structure_fields());
 
 	int c=0;
 	int ret=0;
@@ -33,7 +29,7 @@ int structure_browse(var conn, string table,window win,cross types){
 			else if(eq_c(curs_colname(e.curs),"type")){
 				vector suggest=cross_col(types,0,c_("type"));
 				string val=cell_combo(&e,suggest);
-				if(val.len!=Fail){
+				if(val.len!=End){
 					cell_set(&e,c_("type"),val);
 					map rtype=cross_row(types,0,val);
 					if(rtype.keys.len){
@@ -47,24 +43,11 @@ int structure_browse(var conn, string table,window win,cross types){
 		else{
 			browse_key(&e,c);
 		}
-		if(e.exit){
-			if(confirm_save(&e)){
-				structure_save(&e,conn,table,e.win);
-				ret=1;
-			}
-			if(e.exit)
-				break;
-		}
-		if(e.reload){
-			if(confirm_save(&e)){
-				structure_save(&e,conn,table,e.win);
-				ret=1;
-			}
-			if(e.reload){
-				structure_reload(&e,conn,table,types);
-				browse_colwidth(&e);
-			}
-		}
+		confirm_save(&e);
+		structure_save(&e,conn,table,e.win);
+		if(e.exit) break;
+		structure_reload(&e,conn,table,types);
+		log_show(e.win);
 		browse_view(&e);
 		structure_title(&e,table);
 		browse_body(&e);
@@ -75,8 +58,29 @@ int structure_browse(var conn, string table,window win,cross types){
 	win_clear(e.win);
 	return ret;
 }
-void structure_save(browse_data* e,var conn,string table,window win){
-	map fields=rows_fields(e->rs.rows);
+map structurerows_fields(map cols){
+	vector vals=vec_new();
+	map ret=map_new_ex(sizeof(field));
+	for(int i=0; i<cols.vals.len/cols.keys.len; i++){
+		map row=rows_row(cols, i);
+		if(!map_get(row,c_("name")).len) continue;
+		field f={
+			.name=map_get(row, c_("name")),
+			.type=map_get(row, c_("type")),
+			.create=map_get(row, c_("create")),
+			.pkey=_i(map_get(row, c_("pkey"))),
+			.unique=_i(map_get(row, c_("unique"))),
+			.index=_i(map_get(row, c_("index"))),
+			.meta=map_get(row, c_("meta")),
+		};
+		map_add_ex(&ret, f.name,&f,NULL);
+	}
+	return ret;
+}
+void structure_save(browse* e,var conn,string table,window win){
+	if(!e->save) return;
+	e->save=0;
+	map fields=structurerows_fields(e->rs.rows);
 	map colmap=log_colmap(e->changed,cross_colno(e->rs,c_("name")),fields.keys);
 	vector sqls=sync_fields(table, fields,colmap);
 	sqls=cat(sqls,sql_triggers(conn,table));
@@ -93,7 +97,7 @@ void structure_save(browse_data* e,var conn,string table,window win){
 		map_free_ex(&e->changed,vecpair_free);
 	}
 }
-void structure_title(browse_data* e,string table){
+void structure_title(browse* e,string table){
 	string title=cat(c_("Structure: "),ro(table));
 	win_title(win_resize(e->win,WinRight,-e->win.width/2),title,WinLeft);
 	vis_goto(e->win.x+e->win.width/2,e->win.y);
@@ -122,7 +126,7 @@ map log_colmap(map in,int fieldno,vector newcols){
 	}
 	map ret=map_new();
 	each(newcols,i,string* v){
-		if(vec_search(added,v[i])!=Fail) continue;
+		if(vec_search(added,v[i])!=End) continue;
 		var* old=map_getp(maps,v[i]);
 		if(!old){
 			map_add(&ret,ro(v[i]),ro(v[i]));
@@ -133,15 +137,6 @@ map log_colmap(map in,int fieldno,vector newcols){
 	}
 	_free(&added);
 	map_free(&maps);
-	return ret;
-}
-map rows_colmap(map in){
-	map ret=map_new();
-	field* f=in.vals.ptr;
-	for(int i=0; i<in.keys.len; i++){
-		if(!f[i].id.len) continue;
-		map_add(&ret,f[i].name,f[i].id);
-	}
 	return ret;
 }
 vector sql_triggers(var conn,string table){
@@ -157,7 +152,7 @@ map match_cols(map newcols,map oldcols){
 	for(int i=0; i<newun.len; i++){
 		string n=newun.var[i];
 		int at=vec_search(oldun,n);
-		if(at==Fail) continue;
+		if(at==End) continue;
 		map_add(&ret,n,oldun.var[at]);
 		vec_del(&newun,i);
 		vec_del(&oldun,at);
@@ -181,7 +176,7 @@ vector sync_sql(string name, string sql,cross types,map oldcols){
 	vector sqls=sql_split(sql);
 	vec_trim(sqls);
 	vector toks={0};
-	int at=Fail;
+	int at=End;
 	each(sqls, i, string* s){
 		vfree(toks);
 		toks=code_split(s[i]," \t\n\r(",0);
@@ -191,7 +186,7 @@ vector sync_sql(string name, string sql,cross types,map oldcols){
 		at=i;
 		break;
 	}
-	if(at==Fail){
+	if(at==End){
 		vfree(toks);
 		return Null;
 	}
@@ -249,7 +244,7 @@ int sqls_exec(var conn, vector sqls,window win){
 	vis_log(c_("begin"),win);
 	lite_exec(conn, c_("begin"),NullMap);
 	for(int i=0; i<sqls.len; i++){
-		vis_log(sqls.var[i],win);
+		vis_log(ro(sqls.var[i]),win);
 		lite_exec(conn, ro(sqls.var[i]),NullMap);
 		if(lite_error(conn)){
 			log_show(win);
@@ -274,7 +269,8 @@ int sqls_exec(var conn, vector sqls,window win){
 	if(errs){
 		vis_log(c_("rollback"),win);
 		lite_exec(conn,c_("rollback"),NullMap);
-		vis_error(c_("Press ESC to close"),win);
+		vis_log(c_("Press ESC to close"),win);
+		getchar();
 	}
 	vec_free(&sqls);
 	return errs;
@@ -289,10 +285,10 @@ string table_sqls(var conn, string table){
 int edit_sqls(var conn,string table,window win,cross types){
 	string sqls=table_sqls(conn,table);
 	int ret=0;
-	editwin ewin=editwin_new(win,sqls);
+	ewin ewin=ewin_new(win,sqls);
 	while(1){
 		edit_input(&ewin);
-		if(!editwin_changed(&ewin))
+		if(!ewin_changed(&ewin))
 			break;
 
 		else if(ewin.key==27){
@@ -302,7 +298,7 @@ int edit_sqls(var conn,string table,window win,cross types){
 			if(eq_c(ans,"redit"))
 				continue;
 		}
-		string nsqls=editwin_get(&ewin);
+		string nsqls=ewin_get(&ewin);
 		map cols=table_fields(conn,table,types);
 		int errs=sqls_exec(conn, sync_sql(table,nsqls,types,cols),win);
 		_free(&nsqls);
@@ -313,7 +309,7 @@ int edit_sqls(var conn,string table,window win,cross types){
 			break;
 		}
 	}
-	editwin_free(&ewin);
+	ewin_free(&ewin);
 	vfree(sqls);
 	return ret;
 }

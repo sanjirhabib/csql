@@ -3,7 +3,7 @@
 #include "ewin.h"
 
 /*header
-typedef struct s_editwin {
+typedef struct s_ewin {
 	window view;
 	window win;
 	vector colors;
@@ -15,7 +15,7 @@ typedef struct s_editwin {
 		int start;
 		int end;
 	} color;
-} editwin;
+} ewin;
 end*/
 
 
@@ -30,14 +30,14 @@ void color_print(int no){
 	printf("%s",colors[no]);
 }
 
-window editwin_view(editwin* ewin){
+window ewin_view(ewin* ewin){
 	window view=ewin->view;
 	editor* e=&ewin->editor;
 	int m25=view.width*0.25;
 	int m75=view.width-m25;
 	string curr=get(e->lines, e->curr.y);
 	int len=display_len(curr);
-	int x=display_len(slice(curr,0,e->curr.x));
+	int x=display_len(sub(curr,0,e->curr.x));
 	if(len>=view.width){
 		if(x>view.x+m75)
 			view.x=x-m75;
@@ -61,7 +61,7 @@ window editwin_view(editwin* ewin){
 	ewin->color.start=ColorNormal;
 	return view;
 }
-void add_color(editwin* ewin, int line, int offset, Color color){
+void add_color(ewin* ewin, int line, int offset, Color color){
 	if(line>=ewin->view.y+ewin->view.height) return;
 	if(line<ewin->view.y){
 		ewin->color.start=color;
@@ -70,17 +70,17 @@ void add_color(editwin* ewin, int line, int offset, Color color){
 	//assert(line-ewin->view.y>=0 && line-ewin->view.y<ewin->colors.len);
 	vec_add(ewin->colors.var+line-ewin->view.y,(var){.xy.x=offset, .xy.y=color });
 }
-void suggest_color(editwin* ewin,options* op){
+void suggest_color(ewin* ewin,options* op){
 	if(!op->oplen) return;
 	add_color(ewin,ewin->editor.curr.y,ewin->editor.curr.x,ColorSuggest);
 	add_color(ewin,ewin->editor.curr.y,ewin->editor.curr.x+op->oplen,ColorEdit);
 }
-void editwin_color(editwin* ewin){
-	window view=editwin_view(ewin);
+void ewin_color(ewin* ewin){
+	window view=ewin_view(ewin);
 	each(ewin->colors,i,var* v){
 		_free(v+i);
 	}
-	if(ewin->editor.selected.x==Fail) return;
+	if(ewin->editor.selected.x==End) return;
 	int4 ordered=select_ordered(ewin->editor.selected);
 	add_color(ewin,ordered.y,ordered.x,ColorSelect);
 	add_color(ewin,ordered.y2,ordered.x2,ColorEdit);
@@ -99,9 +99,9 @@ void add_suggest(editor* e, options* op){
 	}
 	if(!is_alpha_char(curr.str[from])) from++;
 
-	string word=slice(curr,from,e->curr.x-from);
+	string word=sub(curr,from,e->curr.x-from);
 	string match={0};
-	int matchno=Fail;
+	int matchno=End;
 	if(op->opno<0) op->opno=0;
 	for(int i=0; i<op->options.len; i++){
 		string s=get(op->options,i);
@@ -113,10 +113,10 @@ void add_suggest(editor* e, options* op){
 			if(matchno==op->opno) break;
 		}
 	}
-	if(matchno!=Fail && matchno!=op->opno && match.len) op->opno=matchno;
+	if(matchno!=End && matchno!=op->opno && match.len) op->opno=matchno;
 	if(word.len<match.len){
 		op->oplen=match.len-word.len;
-		curr=s_insert(curr,e->curr.x,slice(match,word.len,op->oplen));
+		curr=s_insert(curr,e->curr.x,sub(match,word.len,op->oplen));
 		e->lines.var[e->curr.y]=curr;
 	}
 }
@@ -147,85 +147,86 @@ int option_key(editor* e,int c,options* op){
 	op->opno=0;
 	return c;
 }
-editwin* edit_combo(editwin* ewin, vector ops){
+ewin* edit_combo(ewin* ewin, vector ops){
 	int c=0;
 	options op={
 		.options=ops,
 	};
 	do{
-		if(c==27 && ewin->editor.selected.x==Fail) break;
+		if(c==27 && ewin->editor.selected.x==End) break;
 		if(!ewin->is_multiline && (c=='\r'||c=='\n')) break;
 		if(ewin->is_multiline && c=='s'+KeyCtrl) break;
 		c=option_key(&ewin->editor, c, &op);
-		editwin_key(ewin, c);
+		ewin_key(ewin, c);
 		add_suggest(&ewin->editor, &op);
-		editwin_color(ewin);
+		ewin_color(ewin);
 		suggest_color(ewin,&op);
-		editwin_show(ewin);
+		ewin_show(ewin);
 	} while((c=vis_getch()));
 	ewin->key=c;
 	return ewin;
 }
-editwin* edit_input(editwin* ewin){
+ewin* edit_input(ewin* ewin){
 	int c=0;
 	do{
-		if(c==27 && ewin->editor.selected.x==Fail) break;
+		if(c==27 && ewin->editor.selected.x==End) break;
 		if(!ewin->is_multiline && (c=='\r'||c=='\n')) break;
 		if(ewin->is_multiline  && c=='s'+KeyCtrl) break;
-		editwin_key(ewin, c);
+		ewin_key(ewin, c);
 
 		string curr=ewin->editor.lines.var[ewin->editor.curr.y];
 		//vis_msg("cursor.x %d line.len %d view.x %d",ewin->editor.curr.x,curr.len,ewin->view.x);
 
-		editwin_color(ewin);
-		editwin_show(ewin);
+		ewin_color(ewin);
+		ewin_show(ewin);
 	} while((c=vis_getch()));
 	win_clear(ewin->win);
 	ewin->key=c;
 	return ewin;
 }
-void editwin_free(editwin* ewin){
+void ewin_free(ewin* ewin){
 	editor_free(&ewin->editor);
 	vec_free(&ewin->colors);
 	printf("\033[?25l"); //hide cursor
 	win_clear(ewin->win);
 }
-string editwin_close(editwin* ewin){
-	string ret={.len=Fail};
+string ewin_close(ewin* ewin){
+	string ret={.len=End};
 	if(ewin->key==27){
-		editwin_free(ewin);
+		ewin_free(ewin);
 		return ret;
 	}
 	string newtext=editor_get(&ewin->editor);
 	if(eq(newtext,ewin->oldtext)){
 		_free(&newtext);
-		editwin_free(ewin);
+		ewin_free(ewin);
 		return ret;
 	}
-	editwin_free(ewin);
+	ewin_free(ewin);
 	return newtext;
 }
-string editwin_get(editwin* ewin){
+string ewin_get(ewin* ewin){
 	return editor_get(&ewin->editor);
 }
-int editwin_changed(editwin* ewin){
+int ewin_changed(ewin* ewin){
 	string newtext=editor_get(&ewin->editor);
 	int ret=!eq(newtext,ewin->oldtext);
 	_free(&newtext);
 	return ret;
 }
-editwin* editwin_key(editwin* ewin,int c){
+ewin* ewin_key(ewin* ewin,int c){
 	editor_key(&ewin->editor,c);
 	return ewin;
 }
-editwin editwin_new(window win,string text){
-	editwin ewin={
+ewin ewin_new(window win,string text){
+	ewin ewin={
 		.view={.width=win.width,.height=win.height},
 		.win=win,
 		.editor=editor_new(),
 		.oldtext=text,
 		.colors=vec_new_ex(sizeof(var),win.height),
 	};
+	each(ewin.colors,i,var* v) v[i].datasize=sizeof(var);
 	ewin.editor.lines=s_vec(text,"\n");
 	if(ewin.editor.lines.len==1){
 		ewin.editor.selected=(int4){.x2=text.len};
@@ -237,60 +238,61 @@ editwin editwin_new(window win,string text){
 	return ewin;
 }
 int log_show(window win){
-	editwin ewin=editwin_new(win,Null);
+	if(!logs.has_new) return 0;
+	log_win(win);
+	getchar();
+}
+int log_win(window win){
+	ewin ewin=ewin_new(win,Null);
 	_free(&ewin.editor.lines);
-	ewin.editor.lines=ro(log_lines);
-	ewin.editor.curr.y=log_lines.len;
-	editwin_view(&ewin);
+	ewin.editor.lines=ro(logs.lines);
+	ewin.editor.curr.y=logs.lines.len;
+	ewin_view(&ewin);
 	ewin.color.start=ColorConsole;
-	editwin_show(&ewin);
-	editwin_free(&ewin);
+	ewin_show(&ewin);
+	ewin_free(&ewin);
+	logs.has_new=0;
 	return 0;
 }
 int vis_log(string in,window win){
-	log_add(in);
-	log_show(win);
-	return 0;
-}
-int vis_error(string in,window win){
-	vis_log(in,win);
-	getchar();
+	log_add(in,LogInfo);
+	log_win(win);
 	return 0;
 }
 
-void editwin_show(editwin* ewin){
+void ewin_show(ewin* ewin){
 	window view=ewin->view;
 	window win=ewin->win;
 	editor* e=&ewin->editor;
 	color_print(ewin->color.start);
 	for(int i=0; i<view.height; i++){
 		string s=get(e->lines,i+view.y);
-		s=slice(s,view.x,view.width);
+		s=sub(s,view.x,view.width);
 		string full=s_pad(s,view.width,WinLeft);
 		s=ro(full);
 		int x=view.x;
 		vis_goto(win.x, win.y+i);
-		int ncolor=Fail;
+		int ncolor=End;
 		each(ewin->colors.var[i],j,var* color){
 			int len=color[j].xy.x-x;
 			if(len>0){
-				if(ncolor!=Fail){
+				if(ncolor!=End){
 					color_print(ncolor);
-					ncolor=Fail;
+					ncolor=End;
 				}
-				s_out(slice(s,0,len));
-				s=slice(s,len,s.len);
+				s_out(sub(s,0,len));
+				s=sub(s,len,s.len);
 				x+=len;
 			}
 			ncolor=color[j].xy.y;
 		}
-		if(ncolor!=Fail) color_print(ncolor);
+		if(ncolor!=End) color_print(ncolor);
 		s_out(s);
 		_free(&full);
 	}
 	vis_print(VisNormal);
-	int offset=display_len(slice(get(e->lines,e->curr.y),view.x,e->curr.x-view.x));
-	if(e->selected.x!=Fail && !is_reverse_selection(e->selected) && offset) offset--;
+	int offset=display_len(sub(get(e->lines,e->curr.y),view.x,e->curr.x-view.x));
+	if(e->selected.x!=End && !is_reverse_selection(e->selected) && offset) offset--;
 	vis_goto(win.x+offset, win.y+e->curr.y-view.y);
 	vis_print(VisCursor);
 	fflush(stdout);

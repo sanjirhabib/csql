@@ -46,7 +46,6 @@ struct changed {
 	int updated;
 };
 extern vector msg_queue;
-extern vector log_lines;
 extern int msg_timer;
 extern char* terminalcodes[];
 end*/
@@ -129,7 +128,7 @@ string display_rupto(string in,int len){
 		char c=in.str[i2];
 		if(c=='\t') ret+=4;
 		else if((c & 0xC0)!=0x80) ret++;
-		if(ret>len) return slice(in,i,in.len);
+		if(ret>len) return sub(in,i,in.len);
 	}
 	return in;
 }
@@ -139,7 +138,7 @@ string display_upto(string in,int len){
 		char c=in.str[i];
 		if(c=='\t') ret+=4;
 		else if((c & 0xC0)!=0x80) ret++;
-		if(ret>len) return slice(in,0,i);
+		if(ret>len) return sub(in,0,i);
 	}
 	return in;
 }
@@ -180,9 +179,10 @@ var vis_init(){
 	cfmakeraw(&newt);
 	tcsetattr(0,  TCSANOW, &newt);
 	vis_print(VisClear);
-	msg_queue=vec_new();
-	log_lines=vec_new();
+	msg_queue=NullVec;
 	msg_timer=0;
+	logs.lines=NullVec;
+	logs.types=vec_new_ex(sizeof(int),0);
 	return (var){ .ptr=to_heap(&oldt, sizeof(oldt)), .len=IsPtr };
 }
 int vis_restore(var old){
@@ -192,7 +192,8 @@ int vis_restore(var old){
 	vis_print(VisRestoreScr);
 	vis_print(VisRestorePos);
 	vec_free(&msg_queue);
-	vec_free(&log_lines);
+	vec_free(&logs.lines);
+	_free(&logs.types);
     return 0;
 }
 int stdin_more(int milis){
@@ -340,13 +341,6 @@ vector vec_ro(vector in){
 	}
 	return in;
 }
-int is_numeric(string in){
-	if(!in.len) return 0;
-	for(int i=0; i<in.len; i++){
-		if(!is_numeric_char(in.str[i])) return 0;
-	}
-	return 1;
-}
 Side col_align(vector vals){
 	for(int i=0; i<vals.len && i<10; i++){
 		if(is_numeric(get(vals, i))) return WinRight;
@@ -377,22 +371,21 @@ map only_cols(map row, vector cols){
 	return ret;
 }
 vector vals_vec(map in, int colno){
-	return slice(in.vals, colno*in.keys.len,in.keys.len);
+	return sub(in.vals, colno*in.keys.len,in.keys.len);
 }
-map cols_aligns(map cols,cross data){
-	field* f=cols.vals.ptr;
-	for(int i=0; i<cols.keys.len; i++){
-		f[i].align=col_align(cross_col(data,0,cols.keys.var[i]));
+map cols_aligns(map fields,cross data){
+	each(fields.vals,i,field* f){
+		f[i].align=col_align(cross_col(data,0,fields.keys.var[i]));
 	}
-	return cols;
+	return fields;
 }
-vector cols_wins(vector cols,cross rs, window win){
-	map widths=cols_widths(ro(cols),rs,win.width);
-	int ncols=cols.len;
-	vector wins=vec_new_ex(sizeof(window),ncols);
+vector cols_wins(vector fields,cross rs, window win){
+	map widths=cols_widths(ro(fields),rs,win.width);
+	int nfields=fields.len;
+	vector wins=vec_new_ex(sizeof(window),nfields);
 	window wincol=win;
 	wincol=win_resize(wincol,WinTop,-2);
-	for(int i=0; i<ncols; i++){
+	for(int i=0; i<nfields; i++){
 		window* ws=wins.ptr;
 		wincol.width=widths.vals.ints[i];
 		ws[i]=wincol;
@@ -421,25 +414,6 @@ map cols_widths(vector names, cross data,int width){
 		.keys=names,
 		.vals=ret,
 		.index=keys_index(names),
-	};
-}
-map rows_cols(map rows){
-	vector vals=vec_new_ex(sizeof(field), rows.keys.len);
-	field* p=vals.ptr;
-	for(int i=0; i<rows.keys.len; i++){
-		string name=get(rows.keys, i);
-		field fld={
-			.name=name,
-			.type=c_("text"),
-			.pkey=i ? 0 : 1,
-			.title=name_title(name)
-		};
-		p[i]=fld;
-	}
-	return (map){
-		.keys=ro(rows.keys),
-		.vals=vals,
-		.index=ro(rows.index)
 	};
 }
 int vim_char(int c){
@@ -488,6 +462,12 @@ int2 cursor_key(int2 curs,int c,int height,int4 range){
 		case KeyCtrlHome: curs.y=0; break;
 		case KeyCtrlEnd: curs.y=range.y2-1; break;
 	}
+
+	if(curs.y==-2) curs.y=range.y2-1;
+	if(curs.x==-1) curs.x=range.x2-1;
+//	if(curs.y==range.y2) curs.y=-1;
+//	if(curs.x==range.x2) curs.x=0;
+
 	curs.y=between(range.y,curs.y,range.y2-1);
 	curs.x=between(range.x,curs.x,range.x2-1);
 	return curs;
@@ -523,7 +503,7 @@ window cursor_view(int2 curr,window view,int width,vector wins){
 }
 vector view_vals(window view,cross rs,cursor curs,int col){
 	vector ret=cross_col(rs,0,get(curs.cols,col));
-	return slice(ret,view.y-curs.limit.from,view.height);
+	return sub(ret,view.y-curs.limit.from,view.height);
 }
 int win_column(window win,vector vals,Side align,int cursor,string hicolor){
 	int i=0;

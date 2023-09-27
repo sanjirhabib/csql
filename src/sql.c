@@ -18,7 +18,7 @@ typedef struct s_sqlcls {
 
 end*/
 
-vector cols_pkeys(map cols){
+vector fields_pkeys(map cols){
 	vector ret=vec_new();
 	for(int i=0; i<cols.keys.len; i++){
 		field f=*(field*)vec_p(cols.vals,i);
@@ -32,7 +32,7 @@ map sql_cols(const string in, cross types){
 	vector toks=code_split(in,";",0);
 	if(!toks.len) return (map){0};
 	vector toks2=code_split(toks.var[0]," \t\n\r",0);
-	vector toks3=vec_trim(code_split(slice(vec_start(toks2,"("),1,-1),",",0));
+	vector toks3=vec_trim(code_split(sub(vec_start(toks2,"("),1,-1),",",0));
 	map ret=map_new_ex(sizeof(field));
 	for(int i=0; i<toks3.len; i++){
 		string line=get(toks3,i);
@@ -49,7 +49,7 @@ map sql_cols(const string in, cross types){
 			continue;
 		}
 		vector toks4=code_split(line," \t\n\r([{",0);
-		vector cols=vec_trim(code_split(slice(vec_start(toks4,"("),1,-1),",",0));
+		vector cols=vec_trim(code_split(sub(vec_start(toks4,"("),1,-1),",",0));
 		if(eq_c(toks4.var[0],"primary")){
 			for(int i=0; i<cols.len; i++) ((field*)map_getp(ret,get(cols,i)))->pkey=1;
 		}
@@ -76,13 +76,13 @@ sqlcls sql_cls(string sql){
 	sqlcls ret={0};
 	for(int i=0; i<cls.len; i++){
 		vector v=cls.var[i];
-		if(eq_c(v.var[0],"select")) ret.select=vec_s(slice(v,1,v.len)," ");
-		else if(eq_c(v.var[0],"from")) ret.from=vec_s(slice(v,1,v.len)," ");
-		else if(eq_c(v.var[0],"where")) ret.where=vec_s(slice(v,1,v.len)," ");
-		else if(eq_c(v.var[0],"group")) ret.group=vec_s(slice(v,2,v.len)," ");
-		else if(eq_c(v.var[0],"window")) ret.window=vec_s(slice(v,1,v.len)," ");
-		else if(eq_c(v.var[0],"order")) ret.order=vec_s(slice(v,2,v.len)," ");
-		else if(eq_c(v.var[0],"limit")) ret.limit=vec_s(slice(v,1,v.len)," ");
+		if(eq_c(v.var[0],"select")) ret.select=vec_s(sub(v,1,v.len)," ");
+		else if(eq_c(v.var[0],"from")) ret.from=vec_s(sub(v,1,v.len)," ");
+		else if(eq_c(v.var[0],"where")) ret.where=vec_s(sub(v,1,v.len)," ");
+		else if(eq_c(v.var[0],"group")) ret.group=vec_s(sub(v,2,v.len)," ");
+		else if(eq_c(v.var[0],"window")) ret.window=vec_s(sub(v,1,v.len)," ");
+		else if(eq_c(v.var[0],"order")) ret.order=vec_s(sub(v,2,v.len)," ");
+		else if(eq_c(v.var[0],"limit")) ret.limit=vec_s(sub(v,1,v.len)," ");
 		else ret.pre=vec_s(v," ");
 	}
 	vec_free(&toks);
@@ -130,7 +130,7 @@ string sql_limit(string sql,int from, int len){
 }
 vector sql_split(string in){
 	vector toks=code_split(in,";",0);
-	string full=Null;
+	string full=NullStr;
 	vector ret=NullVec;
 	int level=0;
 	each(toks,i,var* tok){
@@ -142,7 +142,7 @@ vector sql_split(string in){
 		else full.len=tok[i].str+tok[i].len-full.str;
 		if(!level){
 			if(trim(full).len) vec_add(&ret,full);
-			full=Null;
+			full=NullStr;
 		}
 		
 	}

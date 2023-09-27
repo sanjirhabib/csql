@@ -7,7 +7,7 @@
 
 var lite_conn(string db){
 	var ret={.len=IsPtr};
-	string name=s_cs(db);
+	string name=s_c(db);
 	if(sqlite3_open_v2(name.ptr,(sqlite3**)&ret.ptr,SQLITE_OPEN_READWRITE|SQLITE_OPEN_URI,NULL)!=SQLITE_OK){
 		_free(&name);
 		lite_print_error(ret,(string){0},(map){0});
@@ -23,7 +23,7 @@ string lite_msg(var conn){
 	return lite_error(conn) ? c_((char*)sqlite3_errmsg(conn.ptr)) : (string){0};
 }
 map lite_print_error(var conn,string sql,map params){
-	log_add(c_(sqlite3_errmsg(conn.ptr)));
+	log_error(c_(sqlite3_errmsg(conn.ptr)));
 	_free(&sql);
 	map_free(&params);
 	return (map){0};
@@ -34,7 +34,7 @@ map lite_exec(var conn,var sql,map params){
 		return lite_print_error(conn,sql,params);
 	// bind parameters
 	for(int i=0; i<params.keys.len; i++){
-		string temp=s_cs(cat(c_(":"),get(params.keys,i)));
+		string temp=s_c(cat(c_(":"),get(params.keys,i)));
 		int idx=sqlite3_bind_parameter_index(stm,temp.str);
 		_free(&temp);
 		if(!idx) continue;
@@ -160,7 +160,7 @@ map table_fields(var conn,string table,cross types){
 //		pair typesize=cut(type,"(");
 //		type=s_lower(typesize.head);	
 //		if(!type.len) type=c_("text");
-//		string size=slice(typesize.tail,0,-1);
+//		string size=sub(typesize.tail,0,-1);
 //		field fld={
 //			.name=ro(name),
 //			.size=atoil(size),

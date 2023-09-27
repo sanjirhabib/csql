@@ -26,6 +26,7 @@ set(SOURCES
 	src/main.c
 	src/browse.c
 	src/structure.c
+	src/tsv.c
 	src/cross.c
 	src/map.c
 	src/code.c
@@ -81,7 +82,7 @@ file(MAKE_DIRECTORY ${CSQL_HIDDEN_DIR})
 
 install(TARGETS csql DESTINATION /usr/local/bin)
 install(FILES etc/csql.ini DESTINATION /etc)
-install(FILES etc/types.tsv DESTINATION ${CSQL_HIDDEN_DIR})
+install(FILES etc/types.tsv DESTINATION ${CSQL_HIDDEN_DIR} PERMISSIONS OWNER_READ OWNER_WRITE)
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <errno.h>
 
 #include "map.h"
 #include "log.h"
@@ -10,16 +11,51 @@
 
 int msg_timer;
 vector msg_queue;
-vector log_lines;
 
-int log_add(string in){
-	log_lines=cat(log_lines,vec_own(s_vec(ro(in),"\n")));
-	if(log_lines.len>200) vec_del_ex(&log_lines,0,log_lines.len-200,_free);
+/*header
+struct s_log {
+	vector lines;
+	vector types;
+	int has_new;
+};
+extern struct s_log logs;
+
+typedef enum {LogInfo, LogWarning, LogError} LogLevel;
+
+end*/
+
+struct s_log logs={0};
+
+vector ring_add(vector in,vector add,int size){
+	if(in.len+add.len<size) return cat(in,add);
+	if(add.len>=size) return sub(add,add.len-size,size);
+	if(in.len<size) in=resize(in,size);
+	assert(in.datasize==add.datasize);
+	memmove(in.str+add.len*add.datasize,in.str,(in.len-add.len)*in.datasize);
+	memcpy(in.str,add.str,add.len*add.datasize);
+	return in;
+}
+
+int log_error(string in){
+	log_add(in,LogError);
+	logs.has_new=1;
+}
+int log_add(string in,LogLevel type){
+	vector add=vec_own(s_vec(ro(in),"\n"));
+	logs.lines=ring_add(logs.lines,add,200);
+	vector types=vec_new_ex(sizeof(int),add.len);
+	each(types,i,int* v) v[i]=type;
+	logs.types=ring_add(logs.types,types,200);
+	_free(&in);
 	return 0;
 }
 var dump(var in){
 	_dump(in,0);
 	return in;
+}
+void os_log(string in){
+	log_error(print_s("%.*s: %s", ls(in), strerror(errno)));
+	_free(&in);
 }
 void _dump(var in,int level){
 	if(in.datasize>1){
@@ -143,4 +179,16 @@ void map_print_ex(map in,void* callback){
 		if(i<in.keys.len-1) printf(",\n");
 	}
 	printf("\n}\n");
+}
+void vec_check(vector in){
+	each(in,i,var* v){
+		assert(v[i].datasize);
+	}
+}
+void msg(char* format,...){
+	va_list args;
+	va_start(args, format);
+	vfprintf(stderr,format,args);
+	fprintf(stderr,"\n");
+	va_end(args);
 }

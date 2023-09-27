@@ -1,33 +1,30 @@
-#include "var.h"
+#include "log.h"
 #include "file.h"
-#include <errno.h>
+
 #include <wordexp.h>
 
 
 
 int is_file(string filename){
 	struct stat st={0};
-	string temp=s_cs(filename);
+	string temp=s_c(filename);
 	stat(temp.str, &st);
 	_free(&temp);
 	return S_ISREG(st.st_mode) || S_ISLNK(st.st_mode);
 }
 int is_dir(string filename){
 	struct stat st={0};
-	string temp=s_cs(filename);
+	string temp=s_c(filename);
 	stat(temp.str, &st);
 	_free(&temp);
 	return S_ISDIR(st.st_mode);
 }
 int file_size(string filename){
 	struct stat st={0};
-	string temp=s_cs(filename);
+	string temp=s_c(filename);
 	stat(temp.str, &st);
 	_free(&temp);
 	return st.st_size;
-}
-vector file_lines(string file){
-	return s_vec(file_s(file),"\n");
 }
 string path_cat(string path1, string path2){
 	if(!path1.len) return path2;
@@ -37,26 +34,33 @@ string path_cat(string path1, string path2){
 	return cat(path1,path2);
 }
 int s_save(string in,string filename){
-	string temp=s_cs(filename);
-	FILE* fp=fopen(temp.str,"w");
-	_free(&temp);
-	if(!fp) return 0;
+	string name=filename_c(filename);
+	FILE* fp=fopen(name.str,"w");
+	if(!fp){
+		os_log(name);
+		_free(&in);
+		return 0;
+	}
 	string parts=in;
 	while(parts.len>0){
 		int ret=fwrite(parts.str,1,parts.len,fp);
 		if(!ret) return 0;
-		parts=slice(parts,ret,parts.len);
+		parts=sub(parts,ret,parts.len);
 	}
-	_free(&filename);
+	_free(&name);
 	_free(&in);
 	fclose(fp);
 	return 1;
 }
-string filec_s(char* filename){
+string file_s(string filename){
+	string name=filename_c(filename);
 	string ret={0};
-	if(!filename) return ret;
-	FILE* fp=fopen(filename,"r");
-	if(!fp) return Null;
+	if(!name.len) return ret;
+	FILE* fp=fopen(name.str,"r");
+	if(!fp){
+		os_log(name);
+		return Null;
+	}
 	fseek(fp,0,SEEK_END);
 	size_t size=ftell(fp);
 	fseek(fp,0,SEEK_SET);
@@ -64,17 +68,15 @@ string filec_s(char* filename){
 	size_t read=fread(ret.str,1,size,fp);
 	fclose(fp);
 	if(read!=size) _free(&ret);
+	vfree(name);
 	return ret;
 }
-string file_s(string filename){
-	string temp=s_cs(filename);
-
+string filename_c(string filename){
+	string temp=s_c(filename);
     wordexp_t exp_result;
     wordexp(temp.str, &exp_result, 0);
-
-	string ret=filec_s(exp_result.we_wordv[0]);
-
-	_free(&temp);
+	string ret=_dup(cl_(exp_result.we_wordv[0],strlen(exp_result.we_wordv[0])+1));
 	wordfree(&exp_result);
+	_free(&temp);
 	return ret;
 }

@@ -1,4 +1,3 @@
-#include "var.h"
 #include "map.h"
 #include "cross.h"
 
@@ -25,7 +24,7 @@ map cross_row(cross in,int nrow,string key){
 	if(key.len) nrow=keys_idx(in.vals.keys,in.vals.index,key);
 	if(nrow==-1||nrow>=in.rows.vals.len) return (map){0};
 	map ret=map_ro(in.rows);
-	ret.vals=slice(in.rows.vals,nrow*in.rows.keys.len,in.rows.keys.len);
+	ret.vals=sub(in.rows.vals,nrow*in.rows.keys.len,in.rows.keys.len);
 	return ret;
 }
 map rows_addcol(map in,int ncol,string col,string name){
@@ -69,7 +68,7 @@ cross cross_addrow(cross in,int nrow, string key, vector row){
 	for(int i=0; i<in.rows.keys.len; i++){
 		in.vals.vals.var[i*(in.vals.keys.len+1)+nrow]=row.var[i];
 	}
-	in.vals.keys=slice(in.vals.vals, 0, in.vals.keys.len+1);
+	in.vals.keys=sub(in.vals.vals, 0, in.vals.keys.len+1);
 	vfree(in.vals.index);
 	in.vals.index=keys_index(in.vals.keys);
 	vfree(row);
@@ -99,13 +98,13 @@ cross cross_addcol(cross in,int ncol, string key, string name){
 		.index=keys_index(in.rows.keys),
 		.vals=vals,
 	};
-	in.vals.vals=splice(in.vals.vals,in.vals.keys.len*ncol,0,vec_new(sizeof(var),in.vals.keys.len),NULL);
+	in.vals.vals=splice(in.vals.vals,in.vals.keys.len*ncol,0,vec_new_ex(sizeof(var),in.vals.keys.len),NULL);
 	return in;
 }
 vector cross_disownrow(cross in,int nrow,string key){
 	if(key.len) nrow=keys_idx(in.vals.keys,in.vals.index,key);
-	if(nrow==-1||nrow>=in.rows.vals.len) return Null;
-	vector ret=_dup(slice(in.rows.vals,nrow*in.rows.keys.len,in.rows.keys.len));
+	if(nrow==-1||nrow>=in.rows.vals.len) return NullVec;
+	vector ret=_dup(sub(in.rows.vals,nrow*in.rows.keys.len,in.rows.keys.len));
 	for(int i=0; i<in.rows.keys.len; i++){
 		in.rows.vals.var[nrow*in.rows.keys.len+i].readonly=1;
 	}
@@ -116,8 +115,8 @@ cross cross_resetrow(cross in,int nrow,string key){
 	if(nrow==-1||nrow>=in.rows.vals.len) return in;
 	for(int i=0; i<in.rows.keys.len; i++){
 		_free(in.rows.vals.var+nrow*in.rows.keys.len+i);
-		in.rows.vals.var[nrow*in.rows.keys.len+i]=Null;
-		in.vals.vals.var[i*in.vals.keys.len+nrow]=Null;
+		in.rows.vals.var[nrow*in.rows.keys.len+i]=NullStr;
+		in.vals.vals.var[i*in.vals.keys.len+nrow]=NullStr;
 	}
 	return in;
 }
@@ -132,7 +131,7 @@ cross cross_delrow(cross in,int nrow,string key){
 vector cross_col(cross in,int ncol,string name){
 	if(name.len) ncol=keys_idx(in.rows.keys,in.rows.index,name);
 	if(ncol==-1||ncol>=in.rows.keys.len) return Null;
-	return slice(in.vals.vals,ncol*in.vals.keys.len,in.vals.keys.len);
+	return sub(in.vals.vals,ncol*in.vals.keys.len,in.vals.keys.len);
 }
 cross cross_reinit(cross in,map rows){
 	cross_free(&in);
@@ -151,7 +150,7 @@ void cross_free(cross* in){
 string cross_get(cross in,int nrow,string key,int ncol,string name){
 	if(key.len) nrow=keys_idx(in.vals.keys,in.vals.index,key);
 	if(name.len) ncol=keys_idx(in.rows.keys,in.rows.index,name);
-	if(nrow==-1||ncol==-1||nrow>=in.rows.vals.len||ncol>=in.rows.keys.len) return Null;
+	if(nrow==-1||ncol==-1||nrow>=in.rows.vals.len||ncol>=in.rows.keys.len) return NullStr;
 	return get(in.rows.vals,nrow*in.rows.keys.len+ncol);
 }
 map rows_vals(map rows, int indexcol){
@@ -162,8 +161,8 @@ map rows_vals(map rows, int indexcol){
 		vals.var[i]=ro(rows.vals.var[(i*rows.keys.len)%rows.vals.len+i/total]);
 	}
 	return (map){
-		.keys=slice(vals, indexcol*total,total),
+		.keys=sub(vals, indexcol*total,total),
 		.vals=vals,
-		.index=keys_index(slice(vals, indexcol*total,total))
+		.index=keys_index(sub(vals, indexcol*total,total))
 	};
 }
