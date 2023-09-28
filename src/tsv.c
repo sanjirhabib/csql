@@ -13,11 +13,21 @@ string tsv_reload(browse* e,string filename,cross types,string buff){
 	e->curs.total.y=rows.vals.len/rows.keys.len;
 	browse_setrows(e,rows);
 	browse_setfield(e,cross_fields(e->rs, types));
+	e->curs.total.x--;
 
 	return in_s;
 }
-int tsv_save(map rows,string filename){
-	return s_save(rows_s(rows),filename);
+int tsv_save(map in,string filename){
+	vector lines=vec_new(sizeof(var),in.vals.len/in.keys.len);
+	vector v=in.keys;
+	v.len--;
+	lines.var[0]=vec_s(vec_escape(v),"\t");
+	for(int i=0; i<in.vals.len/in.keys.len-1; i++){
+		v=rows_row(in,i).vals;
+		v.len--;
+		lines.var[i+1]=vec_s(vec_escape(v),"\t");
+	}
+	return s_save(vec_s(lines,"\n"),filename);
 }
 int tsv_browse(string filename,window win,cross types){
 	browse e=browse_new();

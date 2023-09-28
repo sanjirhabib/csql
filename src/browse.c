@@ -78,13 +78,10 @@ void browse_setfield(browse* e,map fields){
 	map_free_ex(&e->fields,field_free);
 	_free(&e->wins);
 	e->fields=fields;
-	e->curs=(cursor){
-		.total.x=fields.keys.len,
-		.total.y=e->curs.total.y,
-		.limit.len=e->win.height*4,
-		.curr.x=min(fields.keys.len,1),
-		.cols=ro(fields.keys),
-	};
+	e->curs.total.x=fields.keys.len;
+	e->curs.limit.len=e->win.height*4;
+	e->curs.curr.x=min(fields.keys.len,1);
+	e->curs.cols=ro(fields.keys);
 }
 void browse_colwidth(browse* e){
 	_free(&e->wins);
@@ -196,6 +193,7 @@ void table_title(browse* e,string table){
 	s_out(s_pad(temp,half,WinRight));
 }
 void browse_body(browse* e){
+	if(!e->wins.len) return;
 	for(int i=e->view.x; i<e->view.x+e->view.width; i++){
 		string col=get(e->curs.cols,i);
 		int colno=keys_idx(e->rs.rows.keys,e->rs.rows.index,col);

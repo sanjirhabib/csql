@@ -2,12 +2,13 @@
 #include "var.h"
 #include "sql.h"
 #include "log.h"
+#include "file.h"
 #include "lite.h"
 
 
 var lite_conn(string db){
 	var ret={.len=IsPtr};
-	string name=s_c(db);
+	string name=filename_os(db);
 	if(sqlite3_open_v2(name.ptr,(sqlite3**)&ret.ptr,SQLITE_OPEN_READWRITE|SQLITE_OPEN_URI,NULL)!=SQLITE_OK){
 		_free(&name);
 		lite_print_error(ret,(string){0},(map){0});

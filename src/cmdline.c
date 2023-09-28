@@ -8,11 +8,29 @@
 /*header
 struct s_args {
 	string progfile;
-	string db;
+	string file1;
 	string typesfile;
 	int help;
 	int vim;
 };
+enum FileType {
+	FileError=-1,
+	FileText,
+	FileSQLite,
+	FileCSV,
+	FileBinary,
+};
+struct s_filetype {
+	string filename;	
+	string osfilename;	
+	int type;
+	char* rec_sep;
+	char* line_sep;
+	int is_quoted;
+	int has_title;
+	int is_readonly;
+};
+
 extern struct s_args args;
 
 end*/
@@ -62,7 +80,7 @@ void cmdline_args(int argc,char** argv){
 			continue;
 		}
 		int dashes=arg_dashes(s[i]);
-		if(dashes==0) args.db=s[i];
+		if(dashes==0) args.file1=s[i];
 		if(is_word(s[i],"--help -h -?")){
 			args.help=1;
 		}
@@ -90,7 +108,99 @@ int usage(char* msg){
 	);
 	return 0;
 }
-
+struct s_filetype file_type(string filename){
+	struct s_filetype ret={
+		.filename=filename,
+		.osfilename=filename_os(filename),
+		.line_sep="\n",
+		.type=FileError,
+	};
+	string header=file_read(filename,0,512);
+	if(!header.len) return ret;
+	if(s_start(header,"SQLite format 3")){
+		ret.type=FileSQLite;
+		vfree(header);
+		return ret;
+	}
+	vector lines=code_split(header,"\n",0);
+	string line1=lines.var[0];
+	char* end=line1.ptr+line1.len;
+	char* ptr=line1.ptr;
+	ret.is_quoted=*ptr=='"' ? 1 : 0;
+	while(ptr<end){
+		unsigned char c=*ptr;
+		if(c>=0xF8 && c<=0xFF){
+			ret.type=FileBinary;
+			vfree(header);
+			vfree(lines);
+			return ret;
+		}
+		else if(c=='"'){
+			ptr=jump_quote(ptr,end);
+		}
+		else if(c==','){
+			ret.rec_sep=",";
+			break;
+		}
+		else if(c=='\t'){
+			ret.rec_sep="\t";
+			break;
+		}
+		ptr++;
+	}
+	if(!ret.rec_sep){
+		ret.type=FileText;
+		vfree(header);
+		vfree(lines);
+		return ret;
+	}
+	int len=char_count(line1,ret.rec_sep[0]);
+	int hits=0;
+	int miss=0;
+	for(int i=1; i<lines.len-1; i++){
+		int len2=char_count(lines.var[i],ret.rec_sep[0]);
+		if(len==len2) hits++;
+		else miss++;
+		if(len2>len){
+			ret.type=FileText;
+			vfree(header);
+			vfree(lines);
+			return ret;
+		}
+	}
+	if(!ret.is_quoted && lines.len>1 && lines.var[1].len && lines.var[1].str[0]=='"') ret.is_quoted=1;
+	if(hits<=miss){
+		ret.type=FileText;
+		vfree(header);
+		vfree(lines);
+		return ret;
+	}
+	ret.type=FileCSV;
+	vector names=code_split(line1,ret.rec_sep,0);
+	int has_title=1;
+	each(names,i,string* n){
+		string nn=s_dequote(n[i],"\"");
+		if(!nn.len || is_numeric(nn)){
+			has_title=0;
+			break;
+		}
+	}
+	ret.has_title=has_title;
+	vfree(header);
+	vfree(lines);
+	vfree(names);
+	return ret;
+}
+int filetype_sqlite(struct s_filetype file, window win, cross types){
+	var conn=lite_conn(args.file1);
+	if(lite_error(conn)) return End;
+	table_list(conn, win, types);
+	lite_close(conn);
+	return 0;
+}
+int filetype_csv(struct s_filetype file, window win, cross types){
+	return tsv_browse(ro(file.osfilename),win,types);
+}
 int csql_main(int argc,char** argv){
 	default_args();
 	string inimem=inifile_args();
@@ -101,21 +211,12 @@ int csql_main(int argc,char** argv){
 
 	if(args.help)
 		return usage(NULL);
-	if(!args.db.len)
+	if(!args.file1.len)
 		return usage(NULL);
 
 	var old=vis_init();
-
-	var conn=lite_conn(args.db);
-	if(lite_error(conn)){
-		log_print();
-		vis_restore(old);
-		_free(&inimem);
-		return -1;
-	}
 	string types_s=file_s(args.typesfile);
 	if(!types_s.len){
-		lite_close(conn);
 		log_print();
 		vis_restore(old);
 		_free(&inimem);
@@ -123,11 +224,23 @@ int csql_main(int argc,char** argv){
 	}
 	cross types=cross_new(s_rows(types_s));
 
-	table_list(conn, win, types);
-
-	_free(&types_s);
-	lite_close(conn);
+	struct s_filetype info=file_type(args.file1);
+	if(info.type==FileSQLite){
+		filetype_sqlite(info,win,types);
+	}
+	else if(info.type==FileCSV){
+		filetype_csv(info,win,types);
+	}
+	else if(info.type==FileError){
+		log_error(c_("Error analyzing file"));
+	}
+	else{
+		log_error(c_("This type of file isn't handled yet"));
+	}
+	vfree(info.filename);
+	vfree(info.osfilename);
 	cross_free(&types);
+	vfree(types_s);
 	log_print();
 	vis_restore(old);
 	_free(&inimem);

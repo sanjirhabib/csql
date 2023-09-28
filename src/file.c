@@ -34,7 +34,7 @@ string path_cat(string path1, string path2){
 	return cat(path1,path2);
 }
 int s_save(string in,string filename){
-	string name=filename_c(filename);
+	string name=filename_os(filename);
 	FILE* fp=fopen(name.str,"w");
 	if(!fp){
 		os_log(name);
@@ -52,26 +52,30 @@ int s_save(string in,string filename){
 	fclose(fp);
 	return 1;
 }
-string file_s(string filename){
-	string name=filename_c(filename);
-	string ret={0};
+string file_read(string filename,int from, int len){
+	string name=filename_os(filename);
+	string ret=NullStr;
 	if(!name.len) return ret;
 	FILE* fp=fopen(name.str,"r");
 	if(!fp){
 		os_log(name);
-		return Null;
+		return ret;
 	}
 	fseek(fp,0,SEEK_END);
 	size_t size=ftell(fp);
 	fseek(fp,0,SEEK_SET);
-	ret=s_new(NULL,size);
-	size_t read=fread(ret.str,1,size,fp);
+	range r=len_range(size,from,len==End ? size : len);
+	ret=s_new(NULL,r.len);
+	size_t read=fread(ret.str,1,r.len,fp);
 	fclose(fp);
-	if(read!=size) _free(&ret);
+	if(read!=r.len) _free(&ret);
 	vfree(name);
 	return ret;
 }
-string filename_c(string filename){
+string file_s(string filename){
+	return file_read(filename,0,End);
+}
+string filename_os(string filename){
 	filename=s_nullterm(filename);
     wordexp_t exp_result;
     wordexp(filename.str, &exp_result, 0);

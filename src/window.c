@@ -463,8 +463,9 @@ int2 cursor_key(int2 curs,int c,int height,int4 range){
 		case KeyCtrlEnd: curs.y=range.y2-1; break;
 	}
 
-	if(curs.y==-2) curs.y=range.y2-1;
-	if(curs.x==-1) curs.x=range.x2-1;
+	// uncomment for rolling scroll from end
+//	if(curs.y==-2) curs.y=range.y2-1;
+//	if(curs.x==-1) curs.x=range.x2-1;
 //	if(curs.y==range.y2) curs.y=-1;
 //	if(curs.x==range.x2) curs.x=0;
 
@@ -485,6 +486,7 @@ int view_width(int colx,int width,vector wins,int side){
 window cursor_view(int2 curr,window view,int width,vector wins){
 	view.y=between(curr.y-view.height+1,view.y,curr.y);
 	if(!width) return view;
+	if(!wins.len) return view;
 	view.width=view_width(view.x,width,wins,1);
 	if(curr.x<view.x){
 		view.x=curr.x;
