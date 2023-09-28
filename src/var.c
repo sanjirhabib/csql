@@ -261,6 +261,14 @@ vector splice(vector in,int from,int len,vector by,void* callback){
 	}
 	return in;
 }
+string c_nullterm(char* in){
+	return cl_(in,strlen(in)+1);
+}
+string s_nullterm(string in){
+	if(in.len && !in.str[in.len-1]) return in;
+	*(char*)grow(&in,1)='\0';
+	return in;
+}
 vector vec_new(int datasize,int len){
 	vector ret=(vector){.datasize=datasize};
 	if(len) ret=resize(ret,len);

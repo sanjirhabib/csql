@@ -33,12 +33,12 @@ vector ring_add(vector in,vector add,int size){
 	assert(in.datasize==add.datasize);
 	memmove(in.str+add.len*add.datasize,in.str,(in.len-add.len)*in.datasize);
 	memcpy(in.str,add.str,add.len*add.datasize);
+	_free(&add);
 	return in;
 }
 
 int log_error(string in){
 	log_add(in,LogError);
-	logs.has_new=1;
 }
 int log_add(string in,LogLevel type){
 	vector add=vec_own(s_vec(ro(in),"\n"));
@@ -47,6 +47,7 @@ int log_add(string in,LogLevel type){
 	each(types,i,int* v) v[i]=type;
 	logs.types=ring_add(logs.types,types,200);
 	_free(&in);
+	if(type==LogError) logs.has_new=1;
 	return 0;
 }
 var dump(var in){
@@ -184,6 +185,13 @@ void vec_check(vector in){
 	each(in,i,var* v){
 		assert(v[i].datasize);
 	}
+}
+void log_print(){
+	if(!logs.has_new) return;
+	each(logs.lines,i,string* s){
+		msg("%.*s",ls(s[i]));
+	}
+	logs.has_new=0;
 }
 void msg(char* format,...){
 	va_list args;

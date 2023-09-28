@@ -4,10 +4,8 @@
 #include "cmdline.h"
 #include "database.h"
 
-int table_list(var conn, cross types){
-	int2 dim=vis_size();
+int table_list(var conn, window win, cross types){
 	int c=0;
-	window win={.x=4, .y=3,.width=dim.x-8,.height=dim.y-6};
 	window vwin=win;
 	vwin.width=min(30,vwin.width);
 

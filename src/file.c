@@ -72,11 +72,11 @@ string file_s(string filename){
 	return ret;
 }
 string filename_c(string filename){
-	string temp=s_c(filename);
+	filename=s_nullterm(filename);
     wordexp_t exp_result;
-    wordexp(temp.str, &exp_result, 0);
+    wordexp(filename.str, &exp_result, 0);
 	string ret=_dup(cl_(exp_result.we_wordv[0],strlen(exp_result.we_wordv[0])+1));
 	wordfree(&exp_result);
-	_free(&temp);
+	_free(&filename);
 	return ret;
 }

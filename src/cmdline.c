@@ -28,7 +28,7 @@ void default_args(){
 		.vim=1,
 	};
 }
-void inifile_args(){
+string inifile_args(){
 	string lines=file_s(c_("/etc/csql.ini"));
 	vector ls=s_vec(lines,"\n");
 	string section={0};
@@ -48,8 +48,8 @@ void inifile_args(){
 		if(eq_c(name,"vim")) args.vim=is_word(val,"yes 1") ? 1 : 0;
 		if(eq_c(name,"typesfile") && val.len) args.typesfile=val;
 	}
-	_free(&lines);
 	_free(&ls);
+	return lines;
 }
 void cmdline_args(int argc,char** argv){
 	vector words=vec_new(sizeof(var),argc);
@@ -93,9 +93,11 @@ int usage(char* msg){
 
 int csql_main(int argc,char** argv){
 	default_args();
-	inifile_args();
+	string inimem=inifile_args();
 
 	cmdline_args(argc,argv);
+	int2 dim=vis_size();
+	window win={.x=4, .y=3,.width=dim.x-8,.height=dim.y-6};
 
 	if(args.help)
 		return usage(NULL);
@@ -106,22 +108,29 @@ int csql_main(int argc,char** argv){
 
 	var conn=lite_conn(args.db);
 	if(lite_error(conn)){
-		msg("Error: Can't open database file %.*s",ls(args.db));
+		log_print();
+		vis_restore(old);
+		_free(&inimem);
 		return -1;
 	}
 	string types_s=file_s(args.typesfile);
 	if(!types_s.len){
-		msg("%.*s: %s", ls(args.typesfile), strerror(errno));
+		lite_close(conn);
+		log_print();
+		vis_restore(old);
+		_free(&inimem);
 		return -1;
 	}
 	cross types=cross_new(s_rows(types_s));
 
-	table_list(conn,types);
+	table_list(conn, win, types);
 
 	_free(&types_s);
 	lite_close(conn);
 	cross_free(&types);
+	log_print();
 	vis_restore(old);
+	_free(&inimem);
 
 	return 0;
 }
