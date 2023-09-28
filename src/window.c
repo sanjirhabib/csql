@@ -1,3 +1,7 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+
 #include <signal.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -62,6 +66,7 @@ char* terminalcodes []={ ///typedef enum {
 	"\033[0;39;49m",   ///VisNoEdit,
 	"\033[0;30;47m",   ///VisSelect,
 	"\033[2;36;40m",   ///VisSuggest,
+	"\033[0;32;40m",   ///VisGreen,
 	"\033[0m",	///VisNormal,
 	"\033[2J",   ///VisClear,
 	"\033[0K",   ///VisClearLine,
@@ -78,17 +83,17 @@ int vis_print(Terminal code){
 	return 0;
 }
 
-int vis_goto(int x, int y){
+void vis_goto(int x, int y){
 	printf("\033[%d;%df",y+1,x+1);
 }
 string vis_s(Terminal code){
 	return c_(terminalcodes[code]);
 }
 string vis_fg(int r,int g,int b){
-	print_s("\033[38;2;%d;%d;%dm",r,g,b);
+	return print_s("\033[38;2;%d;%d;%dm",r,g,b);
 }
 string vis_bg(int r,int g,int b){
-	print_s("\033[48;2;%d;%d;%dm",r,g,b);
+	return print_s("\033[48;2;%d;%d;%dm",r,g,b);
 }
 int s_out(string in){
 	for(int i=0; i<in.len; i++){
@@ -98,7 +103,6 @@ int s_out(string in){
 			default: putchar(c); break;
 		}
 	}
-	//printf("%.*s",ls(in));
 	_free(&in);
 	return 0;
 }
@@ -157,7 +161,7 @@ int text_out(string in, int width,Side align){
 	}
 	printf("%*s%.*s%*s"
 		, space1, ""
-		, sub.len,sub.str
+		, ls(sub)
 		, space2, ""
 	);
 	_free(&in);
@@ -168,8 +172,6 @@ int2 vis_size(){
 	ioctl(0,  TIOCGWINSZ, &w);
 	return (int2){.x=w.ws_col,  .y=w.ws_row};
 }
-
-
 var vis_init(){
 	vis_print(VisSavePos);
 	vis_print(VisSaveScr);
@@ -178,6 +180,7 @@ var vis_init(){
 	tcgetattr(0,  &oldt);
 	cfmakeraw(&newt);
 	tcsetattr(0,  TCSANOW, &newt);
+	vis_print(VisNormal);
 	vis_print(VisClear);
 	msg_queue=NullVec;
 	msg_timer=0;
@@ -507,7 +510,7 @@ vector view_vals(window view,cross rs,cursor curs,int col){
 	vector ret=cross_col(rs,0,get(curs.cols,col));
 	return sub(ret,view.y-curs.limit.from,view.height);
 }
-int win_column(window win,vector vals,Side align,int cursor,string hicolor){
+void win_column(window win,vector vals,Side align,int cursor,string hicolor){
 	int i=0;
 	for(i=0; i<win.height; i++){
 		vis_goto(win.x,win.y+i);
@@ -528,6 +531,7 @@ window win_resize(window win,Side side,int len){
 	case WinBottom:
 		win.height+=len;
 		break;
+	case WinCenter:
 	case WinLeft:
 		win.x+=len;
 		win.width+=len;

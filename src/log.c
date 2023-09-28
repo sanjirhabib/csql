@@ -37,8 +37,13 @@ vector ring_add(vector in,vector add,int size){
 	return in;
 }
 
-int log_error(string in){
-	log_add(in,LogError);
+int log_error(char* format,...){
+	va_list args;
+	va_start(args,format);
+	string ret=vargs_s(format,args);
+	va_end(args);
+	log_add(ret,LogError);
+	return -1;
 }
 int log_add(string in,LogLevel type){
 	vector add=vec_own(s_vec(ro(in),"\n"));
@@ -55,7 +60,7 @@ var dump(var in){
 	return in;
 }
 void os_log(string in){
-	log_error(print_s("%.*s: %s", ls(in), strerror(errno)));
+	log_error("%.*s: %s", ls(in), strerror(errno));
 	_free(&in);
 }
 void _dump(var in,int level){
@@ -109,6 +114,7 @@ int _lib_error(char* msg,char* file,int line){
 }
 int _lib_warn(char* msg,char* file,int line){
 	printf("WARNING: %s in %s line %d\n",msg,file,line);
+	return -1;
 }
 void vec_print(vector in){
 	vec_print_ex(in,p_print);
@@ -124,7 +130,7 @@ void vec_print_ex(vector in,void* callback){
 }
 void s_print(string in,int own){
 	if(!in.len) return;
-	printf("%.*s",in.len,in.str);
+	printf("%.*s",ls(in));
 	if(own) _free(&in);
 }
 void map_dump(map in){
@@ -172,7 +178,7 @@ void map_print(map in){
 	map_print_ex(in,p_print);
 }
 void map_print_ex(map in,void* callback){
-	printf("Map:{\n",in.keys.len);
+	printf("Map:{\n");
 	for(int i=0; i<in.keys.len; i++){
 		p_print(vec_p(in.keys,i));
 		printf(": ");

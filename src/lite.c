@@ -18,13 +18,13 @@ var lite_conn(string db){
 	return ret;
 }
 int lite_error(var conn){
-	sqlite3_errcode(conn.ptr)!=SQLITE_DONE;
+	return sqlite3_errcode(conn.ptr)!=SQLITE_DONE;
 }
 string lite_msg(var conn){
 	return lite_error(conn) ? c_((char*)sqlite3_errmsg(conn.ptr)) : (string){0};
 }
 map lite_print_error(var conn,string sql,map params){
-	log_error(c_(sqlite3_errmsg(conn.ptr)));
+	log_error("%s",sqlite3_errmsg(conn.ptr));
 	_free(&sql);
 	map_free(&params);
 	return (map){0};

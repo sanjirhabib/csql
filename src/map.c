@@ -285,7 +285,7 @@ string _json(var in){
 }
 int hash(var v){
 	if(v.len>0) return cl_hash(v.ptr,v.len);
-	int ret=0x1d4592f8+(int)v.ll+v.ll>>32;
+	int ret=0x1d4592f8+(int)v.ll+(v.ll>>32);
 	return ret ? ret : 0xc533c700;
 }
 int cl_hash(char *str, int len){

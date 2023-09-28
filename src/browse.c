@@ -171,6 +171,17 @@ int confirm_save(browse* e){
 	return 0;
 }
 browse* browse_view(browse* e){
+	int2 dim=vis_size();
+	if(
+		e->win.width!=dim.x-e->win.x*2
+		|| e->win.height!=dim.y-e->win.y*2
+	){
+		vis_print(VisNormal);
+		vis_print(VisClear);
+		e->win.width=dim.x-e->win.x*2;
+		e->win.height=dim.y-e->win.y*2;
+		_free(&e->wins);
+	}
 	if(!e->wins.len) browse_colwidth(e);
 	e->view=cursor_view((int2){.y=max(e->curs.curr.y,0), .x=e->curs.curr.x},e->view,e->win.width,e->wins);
 	return e;

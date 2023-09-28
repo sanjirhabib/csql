@@ -3,15 +3,19 @@
 #include "database.h"
 #include "cmdline.h"
 
-#define COMPILE_DATE "2023-09-28"
 
 /*header
+
+#define COMPILE_DATE "2023-09-29"
+
 struct s_args {
 	string progfile;
 	string file1;
+	string file2;
 	string typesfile;
 	int help;
 	int vim;
+	int border;
 };
 enum FileType {
 	FileError=-1,
@@ -29,6 +33,7 @@ struct s_filetype {
 	int is_quoted;
 	int has_title;
 	int is_readonly;
+	int is_file;
 };
 
 extern struct s_args args;
@@ -44,6 +49,7 @@ void default_args(){
 	args=(struct s_args){
 		.typesfile=c_("~/.csql/types.tsv"),
 		.vim=1,
+		.border=4,
 	};
 }
 string inifile_args(){
@@ -65,14 +71,17 @@ string inifile_args(){
 
 		if(eq_c(name,"vim")) args.vim=is_word(val,"yes 1") ? 1 : 0;
 		if(eq_c(name,"typesfile") && val.len) args.typesfile=val;
+		if(eq_c(name,"border") && val.len) args.border=atoil(val);
 	}
 	_free(&ls);
 	return lines;
 }
-void cmdline_args(int argc,char** argv){
+int cmdline_args(int argc,char** argv){
 	vector words=vec_new(sizeof(var),argc);
 	for(int i=0; i<argc; i++)
 		words.var[i]=c_(argv[i]);
+
+	int ret=0;
 
 	each(words,i,string* s){
 		if(!i){
@@ -80,12 +89,19 @@ void cmdline_args(int argc,char** argv){
 			continue;
 		}
 		int dashes=arg_dashes(s[i]);
-		if(dashes==0) args.file1=s[i];
-		if(is_word(s[i],"--help -h -?")){
+		if(dashes==0){
+			if(!args.file1.len) args.file1=s[i];
+			else if(!args.file2.len) args.file2=s[i];
+			else ret=log_error("extra argument %.*s",ls(s[i]));
+			break;
+		}
+		else if(is_word(s[i],"--help -h -?")){
 			args.help=1;
 		}
+		else ret=log_error("unknown switch %.*s",ls(s[i]));
 	}
 	_free(&words);
+	return ret;
 }
 int arg_dashes(string s){
 	if(s_start(s,"--")) return 2;	
@@ -114,9 +130,13 @@ struct s_filetype file_type(string filename){
 		.osfilename=filename_os(filename),
 		.line_sep="\n",
 		.type=FileError,
+		.is_file=1,
 	};
 	string header=file_read(filename,0,512);
-	if(!header.len) return ret;
+	if(!header.len){
+		ret.is_file=0;
+		return ret;
+	}
 	if(s_start(header,"SQLite format 3")){
 		ret.type=FileSQLite;
 		vfree(header);
@@ -191,23 +211,31 @@ struct s_filetype file_type(string filename){
 	vfree(names);
 	return ret;
 }
-int filetype_sqlite(struct s_filetype file, window win, cross types){
+int file1_sqlite(struct s_filetype file, window win, cross types){
 	var conn=lite_conn(args.file1);
 	if(lite_error(conn)) return End;
 	table_list(conn, win, types);
 	lite_close(conn);
 	return 0;
 }
-int filetype_csv(struct s_filetype file, window win, cross types){
+int file1_csv(struct s_filetype file, window win, cross types){
 	return tsv_browse(ro(file.osfilename),win,types);
 }
 int csql_main(int argc,char** argv){
 	default_args();
 	string inimem=inifile_args();
 
-	cmdline_args(argc,argv);
+	int ret=cmdline_args(argc,argv);
+	if(ret==End){
+		log_print();
+		vfree(inimem);
+		return End;
+	}
+
 	int2 dim=vis_size();
-	window win={.x=4, .y=3,.width=dim.x-8,.height=dim.y-6};
+	window win={.x=args.border, .y=args.border*480./640};
+	win.width=dim.x-win.x*2;
+	win.height=dim.y-win.y*2;
 
 	if(args.help)
 		return usage(NULL);
@@ -226,16 +254,16 @@ int csql_main(int argc,char** argv){
 
 	struct s_filetype info=file_type(args.file1);
 	if(info.type==FileSQLite){
-		filetype_sqlite(info,win,types);
+		file1_sqlite(info,win,types);
 	}
 	else if(info.type==FileCSV){
-		filetype_csv(info,win,types);
+		file1_csv(info,win,types);
 	}
 	else if(info.type==FileError){
-		log_error(c_("Error analyzing file"));
+		log_error("Error analyzing file");
 	}
 	else{
-		log_error(c_("This type of file isn't handled yet"));
+		log_error("This type of file isn't handled yet");
 	}
 	vfree(info.filename);
 	vfree(info.osfilename);

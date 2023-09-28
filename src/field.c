@@ -55,6 +55,7 @@ map cross_fields(cross in,cross types){
 	vector vals=vec_new(sizeof(field), in.rows.keys.len);
 	field* p=vals.ptr;
 	each(in.rows.keys,i,var* name){
+		if(i==in.rows.keys.len-2) break;
 		field fld={
 			.name=name[i],
 			.type=vals_type(cross_col(in,i,Null),name[i]),
@@ -63,10 +64,11 @@ map cross_fields(cross in,cross types){
 		};
 		p[i]=fld;
 	}
+	vector keys=sub(in.rows.keys,0,-1);
 	return (map){
-		.keys=ro(in.rows.keys),
+		.keys=keys,
 		.vals=vals,
-		.index=ro(in.rows.index)
+		.index=keys_index(keys),
 	};
 }
 map s_fields(string in){

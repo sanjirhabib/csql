@@ -237,8 +237,8 @@ ewin ewin_new(window win,string text){
 	if(!ewin.editor.lines.len) ewin.editor.lines=vec_all(Null);
 	return ewin;
 }
-int log_show(window win){
-	if(!logs.has_new) return 0;
+void log_show(window win){
+	if(!logs.has_new) return;
 	log_win(win);
 	getchar();
 }

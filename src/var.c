@@ -14,7 +14,7 @@
 
 #define End (-1)
 #define VarEnd (var){.len=End}
-#define ls(x) (x).len>0 ? (x).len : 0,(x).str
+#define ls(x) (x).len>0 ? (int)(x).len : 0,(x).str
 #define cat_all(ret, ...) _cat_all(ret, ##__VA_ARGS__,VarEnd)
 #define vec_all(ret, ...) _vec_all(ret, ##__VA_ARGS__,VarEnd)
 #define vec_append(ret, ...) _vec_append(ret, ##__VA_ARGS__,VarEnd)
@@ -121,7 +121,7 @@ int p_i(var* in){
 string i_s(long long in){
 	char ret[21]={0};
 	int at=sizeof(ret)-2;
-	long long temp=abs(in);
+	long long temp=in<0 ? in*-1 : in;
 	do{ ret[at--]='0'+temp%10; } while ((temp/=10));
 	if(in<0) ret[at--]='-';
 	return c_copy(ret+at+1);
@@ -526,7 +526,7 @@ pair cut_any(string in,char* any){
 	return ret;
 }
 pair cut(string in,char* by){
-	string s=s_upto(in,by,Null);
+	string s=s_upto(in,by,NullStr);
 	return (pair){
 		.head=s,
 		.tail=sub(in,s.len+strlen(by),in.len),
@@ -575,7 +575,7 @@ int _c(var in,char* out){
 	switch(in.len){
 		case IsPtr : if(out) memcpy(out,"<ptr>",6); return 5;
 		case End : if(out) memcpy(out,"<end>",6); return 5;
-		case IsInt :
+		case IsInt :;
 			int len=snprintf(0,0,"%d",in.i);
 			if(!out) return len;
 			char buff[32];
@@ -660,7 +660,7 @@ void out(char* fmt,...){
 	va_start(args,fmt);
 	string s=format_vargs(fmt,args);
 	va_end(args);
-	printf("%.*s\n",s.len,s.str);
+	printf("%.*s\n",ls(s));
 	_free(&s);
 }
 string format(char* fmt,...){
@@ -778,7 +778,7 @@ string s_unescape_ex(string in,char* find, char* replace){
 		}
 		i++;
 		char* found=strchr(replace,c);
-		ret.str[offset++]==*found ? find[found-replace] : c;
+		ret.str[offset++]=*found ? find[found-replace] : c;
 	}
 	_free(&in);
 	return ret;
