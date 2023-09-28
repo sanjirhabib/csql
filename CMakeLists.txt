@@ -82,8 +82,7 @@ file(MAKE_DIRECTORY ${CSQL_HIDDEN_DIR})
 
 install(TARGETS csql DESTINATION /usr/local/bin)
 install(FILES etc/csql.ini DESTINATION /etc)
-install(FILES etc/types.tsv DESTINATION ${CSQL_HIDDEN_DIR} PERMISSIONS OWNER_READ OWNER_WRITE)
-#install(CODE "execute_process(COMMAND {CMAKE_SOURCE_DIR}/bin/change_ownership.sh $ENV{SUDO_USER} ${CSQL_HIDDEN_DIR}")
+install(FILES etc/types.tsv DESTINATION ${CSQL_HIDDEN_DIR} PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_WRITE)
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"
