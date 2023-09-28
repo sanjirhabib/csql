@@ -182,7 +182,7 @@ var vis_init(){
 	msg_queue=NullVec;
 	msg_timer=0;
 	logs.lines=NullVec;
-	logs.types=vec_new_ex(sizeof(int),0);
+	logs.types=vec_new(sizeof(int),0);
 	return (var){ .ptr=to_heap(&oldt, sizeof(oldt)), .len=IsPtr };
 }
 int vis_restore(var old){
@@ -212,7 +212,7 @@ int sec_timer(){
 
 var keybuff={0};
 int add_key(int c){
-	if(!keybuff.datasize) keybuff=vec_new();
+	if(!keybuff.datasize) keybuff=NullVec;
 	if(keybuff.len>100) return -1;
 	vec_add(&keybuff, i_(c));
 	return 1;
@@ -331,7 +331,7 @@ int compare_int(const void* v1,  const void* v2){
 }
 vector vec_sub(vector in, int offset,int len){
 	if(offset+len>in.len) len=in.len-offset;
-	vector ret=vec_new_ex(in.datasize, len);
+	vector ret=vec_new(in.datasize, len);
 	memcpy(ret.str, in.str+offset*in.datasize,in.datasize*len);
 	return ret;
 }
@@ -350,7 +350,7 @@ Side col_align(vector vals){
 int col_width(string name,  vector vals){
 	if(!vals.len) return 16;
 	int total=min(vals.len,100);
-	vector temp=vec_new_ex(sizeof(int),total);
+	vector temp=vec_new(sizeof(int),total);
 	int* ip=temp.ptr;
 	for(int i=0; i<total; i++){
 		ip[i]=display_len(vals.var[i]);
@@ -382,7 +382,7 @@ map cols_aligns(map fields,cross data){
 vector cols_wins(vector fields,cross rs, window win){
 	map widths=cols_widths(ro(fields),rs,win.width);
 	int nfields=fields.len;
-	vector wins=vec_new_ex(sizeof(window),nfields);
+	vector wins=vec_new(sizeof(window),nfields);
 	window wincol=win;
 	wincol=win_resize(wincol,WinTop,-2);
 	for(int i=0; i<nfields; i++){
@@ -395,7 +395,7 @@ vector cols_wins(vector fields,cross rs, window win){
 	return wins;
 }
 map cols_widths(vector names, cross data,int width){
-	vector ret=vec_new_ex(sizeof(int), names.len);
+	vector ret=vec_new(sizeof(int), names.len);
 	int total=0;
 	for(int i=0; i<names.len; i++){
 		string name=get(names, i);

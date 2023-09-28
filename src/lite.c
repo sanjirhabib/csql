@@ -40,13 +40,13 @@ map lite_exec(var conn,var sql,map params){
 		if(!idx) continue;
 		sqlite3_bind_text(stm,idx,params.vals.var[i].ptr ? params.vals.var[i].ptr : "",params.vals.var[i].len,NULL);
 	}
-	vector keys=vec_new();
+	vector keys=NullVec;
 	int ncols=sqlite3_column_count(stm);
 	for(int i=0; i<ncols; i++){
 		char* temp=(char*)sqlite3_column_name(stm,i);
 		vec_add(&keys,c_dup(temp));
 	}
-	vector vals=vec_new();
+	vector vals=NullVec;
 	int step=0;
 	while((step=sqlite3_step(stm))){
 		if(step==SQLITE_ROW){
@@ -201,7 +201,7 @@ string cols_litecreate(map cols){
 	return ret;
 }
 vector cols_liteindex(map cols,string table){
-	vector ret=vec_new();
+	vector ret=NullVec;
 	for(int i=0; i<cols.keys.len; i++){
 		field fld=*(field*)vec_p(cols.vals,i);
 		if(fld.pkey||!fld.index && !fld.unique) continue;
@@ -211,7 +211,7 @@ vector cols_liteindex(map cols,string table){
 	return ret;
 }
 vector lite_create(string table,map cols){
-	vector ret=vec_new();
+	vector ret=NullVec;
 	vec_add(&ret,format("drop table if exists {}",table));
 	vec_add(&ret,format("create table {} (\n\t{}\n)",table,cols_litecreate(cols)));
 	ret=cat(ret,cols_liteindex(cols,table));

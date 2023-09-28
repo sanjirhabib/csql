@@ -19,7 +19,7 @@ typedef struct s_sqlcls {
 end*/
 
 vector fields_pkeys(map cols){
-	vector ret=vec_new();
+	vector ret=NullVec;
 	for(int i=0; i<cols.keys.len; i++){
 		field f=*(field*)vec_p(cols.vals,i);
 		if(f.pkey){

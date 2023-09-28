@@ -52,7 +52,7 @@ string vals_type(vector in,string name){
 	return curr.len ? curr : c_("text");
 }
 map cross_fields(cross in,cross types){
-	vector vals=vec_new_ex(sizeof(field), in.rows.keys.len);
+	vector vals=vec_new(sizeof(field), in.rows.keys.len);
 	field* p=vals.ptr;
 	each(in.rows.keys,i,var* name){
 		field fld={
@@ -71,8 +71,8 @@ map cross_fields(cross in,cross types){
 }
 map s_fields(string in){
 	vector lines=s_vec(in,"\n");
-	vector vals=vec_new_ex(sizeof(field),0);
-	vector keys=vec_new();
+	vector vals=vec_new(sizeof(field),0);
+	vector keys=NullVec;
 	each(lines,i,var* ln){
 		field f=s_field(ln[i]);
 
@@ -165,12 +165,12 @@ map structure_fields(){
 		{c_("index"), c_("bool"),c_("Index"),{0},{0},NULL,0,0,0,1},
 		{c_("meta"), c_("int"),c_("Meta"),{0},{0},NULL,0,0,0,0},
 	};
-	vector vals=vec_new_ex(sizeof(field), 0);
+	vector vals=vec_new(sizeof(field), 0);
 	vec_add_ex(&vals, sizeof(colmeta)/sizeof(field),colmeta);
 	return vec_map(s_vec(c_("name type create pkey unique index meta"), " "),vals);
 }
 map fields_rows(map cols){
-	vector vals=vec_new();
+	vector vals=NullVec;
 	map_each(cols,i,field* f){
 		vals=vec_append(vals,
 		_dup(f[i].name),

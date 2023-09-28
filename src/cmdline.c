@@ -52,7 +52,7 @@ void inifile_args(){
 	_free(&ls);
 }
 void cmdline_args(int argc,char** argv){
-	vector words=vec_new_ex(sizeof(var),argc);
+	vector words=vec_new(sizeof(var),argc);
 	for(int i=0; i<argc; i++)
 		words.var[i]=c_(argv[i]);
 
@@ -78,8 +78,8 @@ int usage(char* msg){
 	if(msg)
 		printf("%s\n",msg);
 	printf(
-		"csql v1.0 build: %s\n"
-		"Terminal based sqlite3 database viewer and editor\n"
+		"csql v1.0.1 build: %s\n"
+		"Terminal based sqlite3 editor\n"
 		"(c) 2023 by Sanjir Habib <habib@habibur.com>\n"
 		"\n"
 		"Usage: csql [options] <database>\n"

@@ -29,9 +29,9 @@ map map_new(){
 }
 map map_new_ex(int datasize){
 	map ret={0};
-	ret.keys=vec_new();
-	ret.vals=vec_new_ex(datasize,0);
-	ret.index=vec_new_ex(sizeof(mapindex),0);
+	ret.keys=NullVec;
+	ret.vals=vec_new(datasize,0);
+	ret.index=vec_new(sizeof(mapindex),0);
 	return ret;
 }
 int keys_idx(vector keys, vector index, string key){
@@ -120,7 +120,7 @@ void* map_add_ex(map* in, var key, void* data,void* callback){
 	return ret;
 }
 vector keys_index(vector keys){
-	vector ret=vec_new_ex(sizeof(mapindex),pow2(keys.len));
+	vector ret=vec_new(sizeof(mapindex),pow2(keys.len));
 	mapindex* idx=(mapindex*)ret.str;
 	for(int i=0; i<keys.len; i++){
 		int slot=hash(keys.var[i]) & ret.len-1;
@@ -211,7 +211,7 @@ map rows_row(map in, int idx){
 	return in;
 }
 string rows_s(const map in){
-	vector lines=vec_new();
+	vector lines=NullVec;
 	lines=resize(lines,in.vals.len/in.keys.len+1);
 	lines.var[0]=vec_s(vec_escape(in.keys),"\t");
 	for(int i=0; i<in.vals.len/in.keys.len; i++){
@@ -240,7 +240,7 @@ map s_rows(string in){
 	vector keys=s_vec(lines.var[0],"\t");
 	if(!keys.len) return NullMap;
 	vector index=keys_index(keys);
-	vector vals=vec_new();
+	vector vals=NullVec;
 	for(int i=1; i<lines.len; i++){
 		vector temp=s_vec(lines.var[i],"\t");
 		temp=resize(temp,keys.len);

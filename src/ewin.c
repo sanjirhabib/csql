@@ -224,7 +224,7 @@ ewin ewin_new(window win,string text){
 		.win=win,
 		.editor=editor_new(),
 		.oldtext=text,
-		.colors=vec_new_ex(sizeof(var),win.height),
+		.colors=vec_new(sizeof(var),win.height),
 	};
 	each(ewin.colors,i,var* v) v[i].datasize=sizeof(var);
 	ewin.editor.lines=s_vec(text,"\n");

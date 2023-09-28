@@ -47,7 +47,7 @@ void browse_setwin(browse* e, window win){
 void browse_setrows(browse* e,map rows){
 
 	//+add new
-	rows.vals=splice(rows.vals,rows.vals.len,0,vec_new_ex(sizeof(var),rows.keys.len),NULL);
+	rows.vals=splice(rows.vals,rows.vals.len,0,vec_new(sizeof(var),rows.keys.len),NULL);
 	//add rowid__
 	rows=rows_addcol(rows,-1,Null,c_("rowid__"));
 
@@ -55,7 +55,7 @@ void browse_setrows(browse* e,map rows){
 	if(e->can_search){
 		vector searching=cross_disownrow(e->rs,0,Null);
 		if(e->curs.total.y){
-			if(!searching.len) searching=vec_new_ex(sizeof(var),rows.keys.len);
+			if(!searching.len) searching=vec_new(sizeof(var),rows.keys.len);
 			rows.vals=splice(rows.vals,0,0,searching,NULL);
 			e->curs.total.y++;
 			e->can_search=1;
@@ -270,7 +270,7 @@ void cell_log(browse* e,string name,string val){
 	)
 		temp->head=vec_dup(cross_row(e->rs,rowno,Null).vals);
 	if(!temp->tail.len){
-		vector v=vec_new_ex(sizeof(var),cross_ncols(e->rs));
+		vector v=vec_new(sizeof(var),cross_ncols(e->rs));
 		for(int i=0; i<v.len; i++) v.var[i].len=End;
 		temp->tail=v;
 	}
@@ -282,7 +282,7 @@ void cell_set(browse* e,string name,string val){
 	cell_log(e,name,val);
 	e->rs=cross_set(e->rs,curs_rowno(e->curs),Null,0,name,val);
 	if(e->curs.curr.y==e->curs.total.y-1){ //add another newline bellow if last line
-		vector row=vec_new_ex(sizeof(var),e->rs.rows.keys.len);
+		vector row=vec_new(sizeof(var),e->rs.rows.keys.len);
 		row.var[row.len-1].i=e->rowid++;
 		e->rs=cross_addrow(e->rs, -1, Null, row);
 		e->curs.total.y++;

@@ -261,10 +261,7 @@ vector splice(vector in,int from,int len,vector by,void* callback){
 	}
 	return in;
 }
-vector vec_new(){
-	return (vector){.datasize=sizeof(var)};
-}
-vector vec_new_ex(int datasize,int len){
+vector vec_new(int datasize,int len){
 	vector ret=(vector){.datasize=datasize};
 	if(len) ret=resize(ret,len);
 	return ret;
@@ -421,7 +418,7 @@ vector s_vec(string in,char* by){
 	return s_vec_ex(in,by,0);
 }
 vector s_vec_ex(string in,char* by,int limit){
-	vector ret=vec_new();
+	vector ret=NullVec;
 	string r=NullStr;
 	while((r=s_upto(in,by,r)).len!=End){
 		vec_add(&ret,r);
@@ -587,7 +584,7 @@ int _c(var in,char* out){
 	}
 }
 string vec_s(vector in,char* sep){
-	if(!in.len) return vec_new();
+	if(!in.len) return NullVec;
 	string sep1=c_(sep);
 	int len=((in.len-1)*sep1.len)+vec_strlen(in);
 	pair ret=buff_new(len);
@@ -716,7 +713,7 @@ vector _vec_append(string ret, ...){
 	return ret;
 }
 vector _vec_all(string in,...){
-	vector ret=vec_new();
+	vector ret=NullVec;
 	va_list args;
 	va_start(args,in);
 	var val=in;
@@ -779,7 +776,7 @@ string s_unescape_ex(string in,char* find, char* replace){
 	return ret;
 }
 vector vec_escape(const vector in){
-	vector ret=vec_new();
+	vector ret=NullVec;
 	ret=resize(ret,in.len);
 	for(int i=0; i<in.len; i++){
 		ret.var[i]=s_escape(ro(in.var[i]));

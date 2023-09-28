@@ -69,7 +69,7 @@ char* jump_separator(char* ptr,char* end,char* seps){
 vector code_split(string in,char* seps,int total){
 	char* end=in.str+in.len;
 	char* ptr=in.str;
-	vector ret=vec_new();
+	vector ret=NullVec;
 	char* from=ptr;
 	char* terms=NULL;
 	int slen=strlen(seps);
@@ -138,7 +138,7 @@ int vec_words(vector toks,char* terms){
 	return -1;
 }
 vector vec_split(vector in,char* words){
-	vector ret=vec_new();
+	vector ret=NullVec;
 	int from=0;
 	for(int i=0; i<in.len; i++){
 		if(is_word(in.var[i],words)){
@@ -166,8 +166,8 @@ char* jump_char(char* ptr, char* end,char* chars){
 map s_map(string in){
 	vector toks=code_split(in," ",0);
 	int len=toks.len;
-	vector keys=vec_new_ex(sizeof(var),toks.len/2);
-	vector vals=vec_new_ex(sizeof(var),toks.len/2);
+	vector keys=vec_new(sizeof(var),toks.len/2);
+	vector vals=vec_new(sizeof(var),toks.len/2);
 	for(int i=0; i<toks.len/2; i++){
 		keys.var[i]=toks.var[i*2];
 		vals.var[i]=toks.var[i*2+1];

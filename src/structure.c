@@ -59,7 +59,7 @@ int structure_browse(var conn, string table,window win,cross types){
 	return ret;
 }
 map structurerows_fields(map cols){
-	vector vals=vec_new();
+	vector vals=NullVec;
 	map ret=map_new_ex(sizeof(field));
 	for(int i=0; i<cols.vals.len/cols.keys.len; i++){
 		map row=rows_row(cols, i);
@@ -113,7 +113,7 @@ void structure_title(browse* e,string table){
 
 map log_colmap(map in,int fieldno,vector newcols){
 	map maps=map_new();
-	vector added=vec_new();
+	vector added=NullVec;
 	map_each(in,i,pair* p){
 		if(!p[i].tail.len) continue;
 		string val=p[i].tail.var[fieldno];
@@ -196,7 +196,7 @@ vector sync_sql(string name, string sql,cross types,map oldcols){
 	string colscls=vec_start(toks,"(");
 	vfree(toks);
 
-	vector ret=vec_new();
+	vector ret=NullVec;
 
 	if(!colmap.keys.len){
 		vec_add(&ret, format("create table {} (\n\t{}\n)",name,colscls));
@@ -218,7 +218,7 @@ vector sync_sql(string name, string sql,cross types,map oldcols){
 	return sqls;
 }
 vector sync_fields(string name, map cols,map colmap){
-	vector ret=vec_new();
+	vector ret=NullVec;
 	vec_add(&ret, print_s("drop table if exists _temp"));
 	string colscls=cols_litecreate(cols);
 	if(!colmap.keys.len){

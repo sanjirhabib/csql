@@ -43,7 +43,7 @@ int log_error(string in){
 int log_add(string in,LogLevel type){
 	vector add=vec_own(s_vec(ro(in),"\n"));
 	logs.lines=ring_add(logs.lines,add,200);
-	vector types=vec_new_ex(sizeof(int),add.len);
+	vector types=vec_new(sizeof(int),add.len);
 	each(types,i,int* v) v[i]=type;
 	logs.types=ring_add(logs.types,types,200);
 	_free(&in);
