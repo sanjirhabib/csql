@@ -7,10 +7,10 @@ include_directories(include)
 # Find SQLite3 package
 find_package(SQLite3 REQUIRED)
 
-find_program(AWK_EXECUTABLE awk)
+find_program(GAWK_EXECUTABLE gawk)
 
-if(NOT AWK_EXECUTABLE)
-    message(FATAL_ERROR "Error: 'awk' is required but not found on the system.")
+if(NOT GAWK_EXECUTABLE)
+    message(FATAL_ERROR "Error: 'gawk' is required but not found on the system.")
 endif()
 
 file(MAKE_DIRECTORY ${CMAKE_SOURCE_DIR}/include)
@@ -82,7 +82,7 @@ file(MAKE_DIRECTORY ${CSQL_HIDDEN_DIR})
 
 install(TARGETS csql DESTINATION /usr/local/bin)
 install(FILES etc/csql.ini DESTINATION /etc)
-install(FILES etc/types.tsv DESTINATION ${CSQL_HIDDEN_DIR} PERMISSIONS OWNER_READ OWNER_WRITE WORLD_READ WORLD_WRITE)
+install(FILES etc/types.tsv DESTINATION ${CSQL_HIDDEN_DIR} PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ GROUP_WRITE WORLD_READ WORLD_WRITE)
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake_uninstall.cmake.in"

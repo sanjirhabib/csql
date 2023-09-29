@@ -57,25 +57,23 @@ end*/
 char* terminalcodes []={ ///typedef enum {
 	"\0337",   ///VisSavePos,
 	"\0338",   ///VisRestorePos,
-	"\033[?47h",   ///VisSaveScr,
-	"\033[?47l",   ///VisRestoreScr,
-	"\033[?25l",   ///VisNoCursor,
-	"\033[?25h",   ///VisCursor,
-	"\033[H",   ///VisHome,
-	"\033[0;37;44m",   ///VisEdit,
-	"\033[0;39;49m",   ///VisNoEdit,
-	"\033[0;30;47m",   ///VisSelect,
-	"\033[2;36;40m",   ///VisSuggest,
-	"\033[0;32;40m",   ///VisGreen,
-	"\033[0m",	///VisNormal,
-	"\033[2J",   ///VisClear,
-	"\033[0K",   ///VisClearLine,
-	"\033[7m",   ///VisInverse,
-	"\033[1m",   ///VisBold,
-	"\033[22m",   ///VisNoBold,
-	"\033[27m",   ///VisNoInverse,
-	"\033[?1049h",  ///VisAltScr,
-	"\033[?1049l",  ///VisPriScr
+	"\e[?47h",   ///VisSaveScr,
+	"\e[?47l",   ///VisRestoreScr,
+	"\e[?25l",   ///VisNoCursor,
+	"\e[?25h",   ///VisCursor,
+	"\e[H",   ///VisHome,
+	"\e[38;2;200;200;200m\e[48;2;0;0;128m",	///VisEdit,
+	"\e[0;30;47m",   ///VisSelect,
+	"\e[2;36;40m",   ///VisSuggest,
+	"\e[38;2;0;200;0m\e[48;2;0;0;0m",	///VisNormal,
+	"\e[2J",   ///VisClear,
+	"\e[0K",   ///VisClearLine,
+	"\e[7m",   ///VisInverse,
+	"\e[1m",   ///VisBold,
+	"\e[22m",   ///VisNoBold,
+	"\e[27m",   ///VisNoInverse,
+	"\e[?1049h",  ///VisAltScr,
+	"\e[?1049l",  ///VisPriScr
 };  ///} Terminal;
 
 int vis_print(Terminal code){
@@ -84,16 +82,16 @@ int vis_print(Terminal code){
 }
 
 void vis_goto(int x, int y){
-	printf("\033[%d;%df",y+1,x+1);
+	printf("\e[%d;%df",y+1,x+1);
 }
 string vis_s(Terminal code){
 	return c_(terminalcodes[code]);
 }
 string vis_fg(int r,int g,int b){
-	return print_s("\033[38;2;%d;%d;%dm",r,g,b);
+	return print_s("\e[38;2;%d;%d;%dm",r,g,b);
 }
 string vis_bg(int r,int g,int b){
-	return print_s("\033[48;2;%d;%d;%dm",r,g,b);
+	return print_s("\e[48;2;%d;%d;%dm",r,g,b);
 }
 int s_out(string in){
 	for(int i=0; i<in.len; i++){

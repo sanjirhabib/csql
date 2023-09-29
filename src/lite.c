@@ -18,7 +18,7 @@ var lite_conn(string db){
 	return ret;
 }
 int lite_error(var conn){
-	return sqlite3_errcode(conn.ptr)!=SQLITE_DONE;
+	return sqlite3_errcode(conn.ptr);
 }
 string lite_msg(var conn){
 	return lite_error(conn) ? c_((char*)sqlite3_errmsg(conn.ptr)) : (string){0};

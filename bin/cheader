@@ -12,7 +12,7 @@ headerfile=$(basename $1 .c).h
 outfile=$outdir/$headerfile
 echo writing to $outfile
 echo '#pragma once' > $outfile
-awk "
+gawk "
 #mark header
 
 	/\/\*header/{header=1;next}

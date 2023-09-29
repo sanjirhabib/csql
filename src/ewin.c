@@ -25,12 +25,25 @@ void color_print(int no){
 		terminalcodes[VisEdit],          ///	ColorEdit,
 		terminalcodes[VisSelect],          ///	ColorSelect,
 		terminalcodes[VisSuggest],          ///	ColorSuggest,
-		"\033[48;2;30;30;30m",          ///	ColorConsole,
+		terminalcodes[VisNormal],          ///	ColorConsole,
 	};                        ///} Color;
 	printf("%s",colors[no]);
 }
 
 window ewin_view(ewin* ewin){
+	if(ewin->is_multiline){
+		int2 dim=vis_size();
+		if(
+			ewin->win.width!=dim.x-ewin->win.x*2
+			|| ewin->win.height!=dim.y-ewin->win.y*2
+		){
+			vis_print(VisNormal);
+			vis_print(VisClear);
+			ewin->view.width=ewin->win.width=dim.x-ewin->win.x*2;
+			ewin->view.height=ewin->win.height=dim.y-ewin->win.y*2;
+		}
+	}
+	
 	window view=ewin->view;
 	editor* e=&ewin->editor;
 	int m25=view.width*0.25;
@@ -76,10 +89,11 @@ void suggest_color(ewin* ewin,options* op){
 	add_color(ewin,ewin->editor.curr.y,ewin->editor.curr.x+op->oplen,ColorEdit);
 }
 void ewin_color(ewin* ewin){
-	window view=ewin_view(ewin);
 	each(ewin->colors,i,var* v){
 		_free(v+i);
 	}
+	window view=ewin_view(ewin);
+	ewin->colors=resize(ewin->colors,ewin->view.height);
 	if(ewin->editor.selected.x==End) return;
 	int4 ordered=select_ordered(ewin->editor.selected);
 	add_color(ewin,ordered.y,ordered.x,ColorSelect);

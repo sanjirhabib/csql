@@ -355,6 +355,15 @@ char* grow(string* in,int len){
 	return in->str+(in->len-len)*in->datasize;
 }
 string resize(string in,int len){
+	if(!len){
+		_free(&in);
+		return (string){.datasize=in.datasize};
+	}
+	if(in.len==len) return in;
+	if(len<in.len){
+		in.len=len;
+		return in;
+	}
 	assert(in.datasize);
 	void* ret=in.readonly
 		? memcpy(mem_resize(NULL,len*in.datasize,0),in.str,(int)(min(len,in.len)*in.datasize))

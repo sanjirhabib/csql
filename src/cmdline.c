@@ -233,7 +233,7 @@ int csql_main(int argc,char** argv){
 	}
 
 	int2 dim=vis_size();
-	window win={.x=args.border, .y=args.border*480./640};
+	window win={.x=args.border, .y=args.border/2};
 	win.width=dim.x-win.x*2;
 	win.height=dim.y-win.y*2;
 
