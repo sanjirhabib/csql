@@ -65,7 +65,7 @@ char* terminalcodes []={ ///typedef enum {
 	"\e[38;2;200;200;200m\e[48;2;0;0;128m",	///VisEdit,
 	"\e[0;30;47m",   ///VisSelect,
 	"\e[2;36;40m",   ///VisSuggest,
-	"\e[38;2;0;200;0m\e[48;2;0;0;0m",	///VisNormal,
+	"\e[0m\e[38;2;0;200;0m\e[48;2;0;0;0m",	///VisNormal,
 	"\e[2J",   ///VisClear,
 	"\e[0K",   ///VisClearLine,
 	"\e[7m",   ///VisInverse,

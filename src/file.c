@@ -76,6 +76,7 @@ string file_s(string filename){
 	return file_read(filename,0,End);
 }
 string filename_os(string filename){
+	if(!filename.len) return filename;
 	filename=s_nullterm(filename);
     wordexp_t exp_result;
     wordexp(filename.str, &exp_result, 0);
