@@ -24,7 +24,6 @@
 #define Null (var){0}
 #define NullVec (var){.datasize=sizeof(var)}
 #define NullStr (var){.datasize=1}
-#define map_each(x,y,z) z=x.vals.ptr; for(int y=0; y<x.keys.len; y++)
 #define each(x,y,z) z=x.ptr; for(int y=0; y<x.len; y++)
 
 

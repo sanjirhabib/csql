@@ -140,7 +140,7 @@ map log_colmap(map in,int fieldno,vector newcols){
 	return ret;
 }
 vector sql_triggers(var conn,string table){
-	map rows=lite_exec(conn,c_("select sql from sqlite_schema where name=:name and type='trigger'"),map_all(c_("name"),table));
+	map rows=lite_rows(conn,c_("select sql from sqlite_schema where name=:name and type='trigger'"),map_all(c_("name"),table));
 	vector ret=own(&rows.vals);
 	map_free(&rows);
 	return ret;
@@ -276,7 +276,7 @@ int sqls_exec(var conn, vector sqls,window win){
 	return errs;
 }
 string table_sqls(var conn, string table){
-	map rows=lite_exec(conn, c_("select sql from sqlite_schema where tbl_name=:name"),map_all(c_("name"),ro(table)));
+	map rows=lite_rows(conn, c_("select sql from sqlite_schema where tbl_name=:name"),map_all(c_("name"),ro(table)));
 	string ret=vec_s(ro(rows.vals), ";\n");
 	//ret=cat_c(ret,";\n");
 	map_free(&rows);

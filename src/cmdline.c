@@ -6,7 +6,7 @@
 
 /*header
 
-#define COMPILE_DATE "2023-09-29"
+#define COMPILE_DATE "2023-09-30"
 
 enum FileType {
 	FileError=-1,
@@ -24,12 +24,12 @@ enum Command {
 };
 struct s_filetype {
 	string filename;	
-	string error;
+	string cmd1;
+	string cmd2;
+	string cmd3;
 	int type;
-	int command;
 	char* rec_sep;
 	char* line_sep;
-	int is_provided; //name provided in command line, whether it exist or not.
 	int is_quoted;
 	int has_title;
 	int is_readonly;
@@ -100,16 +100,30 @@ int cmdline_args(int argc,char** argv){
 			args.progfile=v;
 			continue;
 		}
-		if(v.str[0]!='-'){
+		int bareword=v.str[0]!='-';
+		if(bareword){
 			if(!file){
 				ret=log_error("extra argument %.*s",ls(v));
 				break;
 			}
-			file->filename=v;
+			if(!file->filename.len) file->filename=v;
+			else if(!file->cmd1.len) file->cmd1=v;
+			else if(!file->cmd2.len) file->cmd2=v;
+			else if(!file->cmd3.len) file->cmd3=v;
+			else{
+				ret=log_error("extra argument %.*s",ls(v));
+				break;
+			}
+			continue;
+		}
+		else if(file && file->filename.len){
 			file=file2;
 			file2=NULL;
 		}
-		else if(is_word(v,"--help -h -?")){
+
+
+
+		if(is_word(v,"--help -h -?")){
 			args.help=1;
 		}
 		else if(is_word(v,"-sync -dump")){
@@ -117,8 +131,8 @@ int cmdline_args(int argc,char** argv){
 				ret=log_error("extra argument %.*s",ls(v));
 				break;
 			}
-			if(eq_c(v,"-sync")) file->command=CmdSync;
-			else if(eq_c(v,"-dump")) file->command=CmdDump;
+			if(eq_c(v,"-sync")) args.command=CmdSync;
+			else if(eq_c(v,"-dump")) args.command=CmdDump;
 		}
 		else if(is_word(v,"-tsv -csv -db -sql -meta -ro")){
 			if(!file){
@@ -144,15 +158,41 @@ int arg_dashes(string s){
 }
 int usage(char* msg){
 	if(msg)
-		printf("%s\n",msg);
+		printf("%s\n\n",msg);
 	printf(
 		"csql v1.0.1 build: %s\n"
 		"Terminal based sqlite3 editor\n"
 		"(c) 2023 by Sanjir Habib <habib@habibur.com>\n"
 		"\n"
-		"Usage: csql [options] <database>\n"
-		"    -h, --help, -?\n"
-		"        display this help\n"
+		"Usage: csql [<options ...>] <source ...> [<options ...> <destination ...>]\n"
+		"where:\n"
+		"  <options ...>\n"
+		"\n"
+		"    commands\n"
+		"    -dump\n"
+		"        dump rows\n"
+		"    -sync\n"
+		"        sync between two by reading from source and writing to destination\n"
+		"\n"
+		"    file type\n"
+		"    -tsv\n"
+		"        tab seperated file\n"
+		"    -csv\n"
+		"        comma seperated file\n"
+		"    -db\n"
+		"        sqlite3 database\n"
+		"    -txt\n"
+		"        text file\n"
+		"    -sql\n"
+		"        sql dump file\n"
+		"    -meta\n"
+		"        meta file describing database schema\n"
+		"\n"
+		"  <source ...> and <destination ...>\n"
+		"        <filename> [<table>] [<id>]\n"
+		"\n"
+		"  -h, --help, -?\n"
+		"      display this help\n"
 		"\n",
 		COMPILE_DATE
 	);
@@ -259,14 +299,46 @@ struct s_filetype file_type(struct s_filetype ret){
 	vfree(lines);
 	return ret;
 }
-int file1_sqlite(struct s_filetype file, window win, cross types){
+int is_alpha(string in,char* extra){
+	if(!in.len) return 0;
+	char* str=in.str;
+	if(!is_char(*str,1,0,"_")) return 0;
+	char* end=in.str+in.len;
+	while(str<end){
+		if(!is_char(*str,1,1,extra)) return 0;
+		str++;
+	}
+	return 1;
+}
+int sqlite_dump(string in, string table, struct s_filetype out){
+	var conn=lite_conn(in);
+	if(lite_error(conn)) return End;
+	if(!is_alpha(table,"_")){
+		return log_error("invalid table name");
+	}
+	var rs=lite_rs(conn,print_s("select * from %.*s order by 1",ls(table)),NullMap);
+	if(lite_error(conn)) return -1;
+	vector keys=rs_cols(rs);
+	if(!keys.len) return -1;
+	var fp=file_fp(out.filename,"w");
+	fp_write(fp,vec_s(keys,"\t"));
+	fp_write(fp,c_("\n"));
+	vector ret=Null;
+	while((ret=rs_row(rs)).len){
+		fp_write(fp,vec_s(ret,"\t"));
+		fp_write(fp,c_("\n"));
+	}
+	lite_close(conn);
+	return 0;
+}
+int sqlite_browse(struct s_filetype file, window win, cross types){
 	var conn=lite_conn(args.file1.filename);
 	if(lite_error(conn)) return End;
 	table_list(conn, win, types);
 	lite_close(conn);
 	return 0;
 }
-int file1_csv(struct s_filetype file, window win, cross types){
+int csvfile_browse(struct s_filetype file, window win, cross types){
 	return tsv_browse(ro(file.filename),win,types);
 }
 int csql_main(int argc,char** argv){
@@ -304,14 +376,24 @@ int csql_main(int argc,char** argv){
 	if(logs.has_new){
 		// do nothing.
 	}
+	else if(args.command){
+		if(args.command==CmdDump){
+			if(args.file1.type!=FileSQLite)
+				log_error("source is not a sqlite database for dumping");
+			else if(!args.file1.cmd1.len)
+				log_error("provide a table name for dumping");
+			else
+				sqlite_dump(args.file1.filename, args.file1.cmd1, args.file2);
+		}
+	}
 	else if(args.file1.type==FileSQLite){
 		var old=vis_init();
-		file1_sqlite(args.file1,win,types);
+		sqlite_browse(args.file1,win,types);
 		vis_restore(old);
 	}
 	else if(args.file1.type==FileCSV){
 		var old=vis_init();
-		file1_csv(args.file1,win,types);
+		csvfile_browse(args.file1,win,types);
 		vis_restore(old);
 	}
 	else{

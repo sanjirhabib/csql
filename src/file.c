@@ -33,43 +33,55 @@ string path_cat(string path1, string path2){
 	if(path2.str[0]=='/') path2=cut(path2,"/").tail;
 	return cat(path1,path2);
 }
-int s_save(string in,string filename){
-	string name=filename_os(filename);
-	FILE* fp=fopen(name.str,"w");
-	if(!fp){
-		os_log(name);
-		_free(&in);
-		return 0;
-	}
-	string parts=in;
+int fp_write(var fp,string out){
+	string parts=out;
 	while(parts.len>0){
-		int ret=fwrite(parts.str,1,parts.len,fp);
-		if(!ret) return 0;
+		int ret=fwrite(parts.str,1,parts.len,fp.ptr);
+		if(!ret){
+			os_log(c_("Writing to file failed"));
+			return 0;
+		}
 		parts=sub(parts,ret,parts.len);
 	}
-	_free(&name);
-	_free(&in);
-	fclose(fp);
+	vfree(out);
 	return 1;
 }
-string file_read(string filename,int from, int len){
+int s_save(string in,string filename){
+	var fp=file_fp(in,"w");
+	if(!fp.ptr) return 0;
+	int ret=fp_write(fp,in);
+	if(!ret) return 0;
+	_free(&in);
+	fp_close(fp);
+	return 1;
+}
+var file_fp(string filename,char* rw){
+	if(!filename.len || eq_c(filename,"-")) return ptr_(stdout);
 	string name=filename_os(filename);
-	string ret=NullStr;
-	if(!name.len) return ret;
-	FILE* fp=fopen(name.str,"r");
+	if(!name.len) return Null;
+	FILE* fp=fopen(name.str,rw);
 	if(!fp){
 		os_log(name);
-		return ret;
+		return Null;
 	}
-	fseek(fp,0,SEEK_END);
-	size_t size=ftell(fp);
-	fseek(fp,0,SEEK_SET);
-	range r=len_range(size,from,len==End ? size : len);
-	ret=s_new(NULL,r.len);
-	size_t read=fread(ret.str,1,r.len,fp);
-	fclose(fp);
-	if(read!=r.len) _free(&ret);
 	vfree(name);
+	return ptr_(fp);
+}
+void fp_close(var fp){
+	if(!fp.ptr || fp.ptr==stdout||fp.ptr==stderr) return;
+	fclose(fp.ptr);
+}
+string file_read(string filename,int from, int len){
+	var fp=file_fp(filename,"r");
+	if(!fp.ptr) return Null;
+	fseek(fp.ptr,0,SEEK_END);
+	size_t size=ftell(fp.ptr);
+	fseek(fp.ptr,0,SEEK_SET);
+	range r=len_range(size,from,len==End ? size : len);
+	string ret=s_new(NULL,r.len);
+	size_t read=fread(ret.str,1,r.len,fp.ptr);
+	fp_close(fp);
+	if(read!=r.len) _free(&ret);
 	return ret;
 }
 string file_s(string filename){

@@ -13,7 +13,7 @@ int table_list(var conn, window win, cross types){
 	browse_setwin(&e,vwin);
 	browse_setfield(&e,s_fields(c_("name type code title Tables")));
 
-	map rows=lite_exec(conn, c_("select name from sqlite_master where type='table' and not name in ('search', 'search_config', 'search_content', 'search_data', 'search_docsize', 'search_idx') order by 1"),NullMap);
+	map rows=lite_rows(conn, c_("select name from sqlite_master where type='table' and not name in ('search', 'search_config', 'search_content', 'search_data', 'search_docsize', 'search_idx') order by 1"),NullMap);
 	vec_add(&rows.vals,Null);
 	e.curs.total.x=1;
 	e.curs.total.y=rows.vals.len;
@@ -31,7 +31,7 @@ int table_list(var conn, window win, cross types){
 				if(tbl.len){
 					int ret=structure_browse(conn, tbl,win,types);
 					if(ret){
-						map rows=lite_exec(conn, c_("select name from sqlite_master where type='table' and not name in ('search', 'search_config', 'search_content', 'search_data', 'search_docsize', 'search_idx') order by 1"),NullMap);
+						map rows=lite_rows(conn, c_("select name from sqlite_master where type='table' and not name in ('search', 'search_config', 'search_content', 'search_data', 'search_docsize', 'search_idx') order by 1"),NullMap);
 						vec_add(&rows.vals,Null);
 						e.curs.total.x=1;
 						e.curs.total.y=rows.vals.len;
@@ -112,7 +112,7 @@ browse* browse_reload(browse* e,var conn,string table){
 	string sql=format("select * from {} order by 1", ro(table));
 	sql=sql_filter(sql,ro(filter.keys));
 	sql=sql_limit(sql, e->curs.limit.from, e->curs.limit.len);
-	map rows=lite_exec(conn, sql,filter);
+	map rows=lite_rows(conn, sql,filter);
 	browse_setrows(e,rows);
 	if(lite_error(conn)) vis_msg("%.*s",ls(lite_msg(conn)));
 	return e;

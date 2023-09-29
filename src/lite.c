@@ -1,4 +1,9 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
+#include <time.h>
 #include <sqlite3.h>
+
 #include "var.h"
 #include "sql.h"
 #include "log.h"
@@ -23,65 +28,126 @@ int lite_error(var conn){
 string lite_msg(var conn){
 	return lite_error(conn) ? c_((char*)sqlite3_errmsg(conn.ptr)) : (string){0};
 }
-map lite_print_error(var conn,string sql,map params){
+var lite_print_error(var conn,string sql,map params){
 	log_error("%s",sqlite3_errmsg(conn.ptr));
 	_free(&sql);
 	map_free(&params);
-	return (map){0};
+	return Null;
 }
-map lite_exec(var conn,var sql,map params){
+var lite_rs(var conn,var sql,map params){
 	sqlite3_stmt* stm=NULL;
 	if(sqlite3_prepare_v2(conn.ptr,sql.ptr,sql.len,&stm,NULL)!=SQLITE_OK)
 		return lite_print_error(conn,sql,params);
-	// bind parameters
 	for(int i=0; i<params.keys.len; i++){
 		string temp=s_c(cat(c_(":"),get(params.keys,i)));
 		int idx=sqlite3_bind_parameter_index(stm,temp.str);
 		_free(&temp);
 		if(!idx) continue;
-		sqlite3_bind_text(stm,idx,params.vals.var[i].ptr ? params.vals.var[i].ptr : "",params.vals.var[i].len,NULL);
-	}
-	vector keys=NullVec;
-	int ncols=sqlite3_column_count(stm);
-	for(int i=0; i<ncols; i++){
-		char* temp=(char*)sqlite3_column_name(stm,i);
-		vec_add(&keys,c_dup(temp));
-	}
-	vector vals=NullVec;
-	int step=0;
-	while((step=sqlite3_step(stm))){
-		if(step==SQLITE_ROW){
-			for(int i=0;i<ncols;i++){
-				char* temp=(char*)sqlite3_column_text(stm,i);
-				vec_add(&vals,c_dup(temp));
-			}
-		}
-		else if(step==SQLITE_BUSY) continue;
-		else if(step==SQLITE_DONE) break;
-		else{
-			sqlite3_finalize(stm);
+		int ret=sqlite3_bind_text(stm,idx,params.vals.var[i].ptr ? params.vals.var[i].ptr : "",params.vals.var[i].len,NULL);
+		if(ret!=SQLITE_OK)
 			return lite_print_error(conn,sql,params);
-		}
+
 	}
-	if(sqlite3_finalize(stm)!=SQLITE_OK) return lite_print_error(conn,sql,params);
-	_free(&sql);
 	map_free(&params);
+	vfree(sql);
+	return ptr_(stm);
+}
+vector rs_cols(var rs){
+	int ncols=sqlite3_column_count(rs.ptr);
+	if(!ncols) return NullVec;
+	vector ret=vec_new(sizeof(var),ncols);
+	for(int i=0; i<ncols; i++){
+		char* temp=(char*)sqlite3_column_name(rs.ptr,i);
+		ret.var[i]=c_dup(temp);
+	}
+	return ret;
+}
+void msleep(int milisec){
+	struct timespec sleep_time={
+		.tv_sec = 0,
+		.tv_nsec = milisec*1000000,
+	};
+	nanosleep(&sleep_time, NULL);
+}
+vector rs_row(var rs){
+	int ncols=sqlite3_column_count(rs.ptr);
+	if(!ncols) return NullVec;
+	int status=0;
+	while((status=sqlite3_step(rs.ptr))==SQLITE_BUSY){
+		msleep(1);
+	}
+	if(status==SQLITE_DONE){
+		rs_close(rs);
+		return NullVec;
+	}
+	else if(status!=SQLITE_ROW){
+		rs_close(rs);
+		lite_print_error(ptr_(sqlite3_db_handle(rs.ptr)),c_(sqlite3_expanded_sql(rs.ptr)),NullMap);
+		return NullVec;
+	}
+	vector ret=vec_new(sizeof(var),ncols);
+	for(int i=0;i<ncols;i++){
+		char* temp=(char*)sqlite3_column_text(rs.ptr,i);
+		ret.var[i]=c_dup(temp);
+	}
+	return ret;
+}
+void rs_close(var rs){
+	if(rs.ptr) sqlite3_finalize(rs.ptr);
+}
+void rs_free(void* rs){
+	var* temp=rs;
+	rs_close(*temp);
+	*temp=Null;
+}
+var lite_val(var conn,string sql,map params){
+	var rs=lite_rs(conn,sql,params);
+	vector row=rs_row(rs);
+	if(!row.len){
+		return Null;
+	}
+	string ret=row.var[0];
+	row.var[0].readonly=1;
+	vec_free(&row);
+	rs_close(rs);
+	return ret;
+}
+vector lite_vec(var conn,string sql,map params){
+	var rs=lite_rs(conn,sql,params);
+	vector ret=NullVec;
+	vector row=Null;
+	while((row=rs_row(rs)).len) ret=cat(ret,row);
+	return ret;
+}
+map lite_rows(var conn, var sql, map params){
+	var rs=lite_rs(conn,sql,params);
+	vector keys=rs_cols(rs);
+	vector row=Null;
+	vector vals=NullVec;
+	while((row=rs_row(rs)).len){
+		vals=cat(vals,row);	
+	}
 	return (map){
 		.keys=keys,
 		.vals=vals,
 		.index=keys_index(keys),
 	};
-}	
+}
+int lite_exec(var conn,var sql,map params){
+	var rs=lite_rs(conn,sql,params);
+	int status=0;
+	while((status=sqlite3_step(rs.ptr))==SQLITE_BUSY){
+		msleep(1000);
+	}
+	rs_close(rs);
+	if(status==SQLITE_DONE || status==SQLITE_ROW){
+		return 0;
+	}
+	return -1;
+}
 int lite_close(var conn){
 	sqlite3_close_v2(conn.ptr);
 	return 0;
-}
-var lite_val(var conn,string sql,map params){
-	map rows=lite_exec(conn,sql,params);
-	var ret=Null;
-	if(rows.vals.len) ret=own(getp(rows.vals,0));
-	map_free(&rows);
-	return ret;
 }
 var lite_delete(var conn,var table,map pkeys){
 	var keys={0};
@@ -136,18 +202,18 @@ map table_fields(var conn,string table,cross types){
 	if(!cols.keys.len) return cols;
 	((field*)getp(cols.vals,0))->mem=sql.ptr;
 
-	map rows=lite_exec(conn,c_("select substr(sql,instr(sql,'(')+1,instr(sql,')')-instr(sql,'(')-1) from sqlite_master where type='index' and tbl_name=:tbl and sql like '%UNIQUE%'"),map_all(c_("tbl"),table));
-	for(int i=0; i<rows.vals.len; i++){
-		field* p=map_getp(cols,get(rows.vals,i));
+	vector rows=lite_vec(conn,c_("select substr(sql,instr(sql,'(')+1,instr(sql,')')-instr(sql,'(')-1) from sqlite_master where type='index' and tbl_name=:tbl and sql like '%UNIQUE%'"),map_all(c_("tbl"),table));
+	each(rows,i,var* n){
+		field* p=map_getp(cols,n[i]);
 		if(p) p->unique=1;
 	}
-	map_free(&rows);
-	rows=lite_exec(conn,c_("select substr(sql,instr(sql,'(')+1,instr(sql,')')-instr(sql,'(')-1) from sqlite_master where type='index' and tbl_name=:tbl and sql not like '%UNIQUE%'"),map_all(c_("tbl"),table));
-	for(int i=0; i<rows.vals.len; i++){
-		field* p=map_getp(cols,get(rows.vals,i));
+	vec_free(&rows);
+	rows=lite_vec(conn,c_("select substr(sql,instr(sql,'(')+1,instr(sql,')')-instr(sql,'(')-1) from sqlite_master where type='index' and tbl_name=:tbl and sql not like '%UNIQUE%'"),map_all(c_("tbl"),table));
+	each(rows,i,n){
+		field* p=map_getp(cols,n[i]);
 		if(p) p->index=1;
 	}
-	map_free(&rows);
+	vec_free(&rows);
 	return cols;
 }
 //map table_fields(var conn,string table){

@@ -2,6 +2,7 @@
 #include "map.h"
 
 #define map_all(ret, ...) _m_all(ret, ##__VA_ARGS__,VarEnd)
+#define map_each(x,y,z) z=x.vals.ptr; for(int y=0; y<x.keys.len; y++)
 
 /*header
 typedef struct s_map {
