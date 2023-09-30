@@ -158,11 +158,11 @@ int confirm_save(browse* e){
 		e->reload=0;
 		return 0;
 	}
-	else if(eq_c(ans,"no")){
+	else if(eq(ans,"no")){
 		map_free_ex(&e->changed,vecpair_free);
 		return 0;
 	}
-	else if(eq_c(ans,"yes")){
+	else if(eq(ans,"yes")){
 		e->save=1;
 		return 1;
 	}

@@ -93,17 +93,6 @@ string vis_fg(int r,int g,int b){
 string vis_bg(int r,int g,int b){
 	return print_s("\e[48;2;%d;%d;%dm",r,g,b);
 }
-int s_out(string in){
-	for(int i=0; i<in.len; i++){
-		char c=in.str[i];
-		switch(c){
-			case '\t': printf("%*s",4,""); break;
-			default: putchar(c); break;
-		}
-	}
-	_free(&in);
-	return 0;
-}
 string s_pad(string in, int width, Side align){
 	int len=display_len(in);
 	int inlen=in.len;

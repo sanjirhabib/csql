@@ -45,7 +45,7 @@ string vals_type(vector in,string name){
 		string type=val_type(val[i]);
 
 		if(!curr.len) curr=type;
-		else if(eq(curr,val[i])) return type;	
+		else if(eq_s(curr,val[i])) return type;	
 		else if(no>=2) return type;
 		no++;
 	}
@@ -64,19 +64,29 @@ map cross_fields(cross in,cross types){
 		};
 		p[i]=fld;
 	}
-	vector keys=sub(in.rows.keys,0,-1);
+	vector keys=sub(in.rows.keys,0,End-1);
 	return (map){
 		.keys=keys,
 		.vals=vals,
 		.index=keys_index(keys),
 	};
 }
+map fields_typed(map in,cross types){
+	map_each(in,i,field* f){
+		string type=f[i].type;
+		if(!f[i].create.len) f[i].create=cross_get(types,0,type,0,c_("create"));
+		if(!f[i].index) f[i].index=_i(cross_get(types,0,type,0,c_("index")));
+	}
+	return in;
+}
 map s_fields(string in){
-	vector lines=s_vec(in,"\n");
+	vector lines=vec_trim(s_vec(trim(in),"\n"));
 	vector vals=vec_new(sizeof(field),0);
 	vector keys=NullVec;
+	int pkeys=0;
 	each(lines,i,var* ln){
 		field f=s_field(ln[i]);
+		if(!i) f.pkey=1;
 
 		if(!f.title.len) f.title=name_title(f.name);
 		if(!f.type.len) f.type=c_("code");
@@ -104,17 +114,17 @@ field s_field(string in){
 			continue;
 		}
 		string val=get(vals,i+1);
-		if(eq_c(s,"type"))
+		if(eq(s,"type"))
 			ret.type=val;
-		else if(eq_c(s,"pkey"))
+		else if(eq(s,"pkey"))
 			ret.pkey=_i(val);
-		else if(eq_c(s,"unique"))
+		else if(eq(s,"unique"))
 			ret.unique=_i(val);
-		else if(eq_c(s,"index"))
+		else if(eq(s,"index"))
 			ret.index=_i(val);
-		else if(eq_c(s,"align"))
-			ret.index=eq_c(val,"right") ? WinRight : WinLeft;
-		else if(eq_c(s,"title"))
+		else if(eq(s,"align"))
+			ret.index=eq(val,"right") ? WinRight : WinLeft;
+		else if(eq(s,"title"))
 			ret.title=val;
 		else{
 			ret.meta=s_join(ret.meta," ",val);
@@ -210,13 +220,13 @@ void field_free(field* in){
 }
 string meta_type(string type,int size,string name){
 	if(size==36) return c_("guid");
-	if(size==7 && eq_c(name,"month")) return c_("month");
-	if(eq_c(type,"date")) return c_("date");
-	if(eq_c(name,"year")) return c_("year");
-	if(eq_c(type,"tinyint")) return c_("bool");
-	if(size==1 && eq_c(type,"int")) return c_("bool");
-	if(eq_c(type,"clob")) return c_("para");
-	if(size>255 && eq_c(type,"text")) return c_("para");
+	if(size==7 && eq(name,"month")) return c_("month");
+	if(eq(type,"date")) return c_("date");
+	if(eq(name,"year")) return c_("year");
+	if(eq(type,"tinyint")) return c_("bool");
+	if(size==1 && eq(type,"int")) return c_("bool");
+	if(eq(type,"clob")) return c_("para");
+	if(size>255 && eq(type,"text")) return c_("para");
 	if(is_word(type,"mediumblob longblob bytea")) return c_("blob");
 	if(is_word(type,"string varchar2 varchar char")){
 		if(size>2048) return c_("page");
@@ -225,17 +235,17 @@ string meta_type(string type,int size,string name){
 	}
 	if(is_word(name,"debit credit")) return c_("currency");
 	if(is_word(type,"varchar2 varchar char")) return c_("code");
-	if(eq_c(type,"numeric")) return c_("currency");
+	if(eq(type,"numeric")) return c_("currency");
 	if(is_word(type,"number int int4 integer")) return c_("int");
 	if(is_word(type,"real double float float4")) return c_("float");
-	if(eq_c(type,"timestamp")) return c_("datetime");
+	if(eq(type,"timestamp")) return c_("datetime");
 	return c_("text");
 }
 string field_type(field* fld,cross types){
 	vector creates=cross_col(types,0,c_("create"));
 	for(int i=0; i<creates.len; i++){
 		assert(types.vals.keys.var[i].datasize);
-		if(eq(fld->create,creates.var[i])) return types.vals.keys.var[i];
+		if(eq_s(fld->create,creates.var[i])) return types.vals.keys.var[i];
 	}
 	return NullStr;
 }

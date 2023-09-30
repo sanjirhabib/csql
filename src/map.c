@@ -41,7 +41,7 @@ int keys_idx(vector keys, vector index, string key){
 	slot=((mapindex*)index.str)[slot].head-1;
 	while(1){
 		if(slot<0) return End;
-		if(eq(key,((var*)keys.str)[slot])) return slot;
+		if(eq_s(key,((var*)keys.str)[slot])) return slot;
 		slot=((mapindex*)index.str)[slot].tail-1;
 	}
 	//never.

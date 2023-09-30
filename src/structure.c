@@ -26,7 +26,7 @@ int structure_browse(var conn, string table,window win,cross types){
 				ret=edit_sqls(conn,table,win,types);
 				if(ret) e.reload=1;
 			}
-			else if(eq_c(curs_colname(e.curs),"type")){
+			else if(eq(curs_colname(e.curs),"type")){
 				vector suggest=cross_col(types,0,c_("type"));
 				string val=cell_combo(&e,suggest);
 				if(val.len!=End){
@@ -181,7 +181,7 @@ vector sync_sql(string name, string sql,cross types,map oldcols){
 		vfree(toks);
 		toks=code_split(s[i]," \t\n\r(",0);
 		if(toks.len<2) continue;
-		if(!eq_c(toks.var[0],"create") || !eq_c(toks.var[1],"table"))
+		if(!eq(toks.var[0],"create") || !eq(toks.var[1],"table"))
 			continue;
 		at=i;
 		break;
@@ -220,7 +220,7 @@ vector sync_sql(string name, string sql,cross types,map oldcols){
 vector sync_fields(string name, map cols,map colmap){
 	vector ret=NullVec;
 	vec_add(&ret, print_s("drop table if exists _temp"));
-	string colscls=cols_litecreate(cols);
+	string colscls=fields_litecreate(cols);
 	if(!colmap.keys.len){
 		vec_add(&ret, format("create table {} (\n\t{}\n)",name,colscls));
 	}
@@ -235,7 +235,7 @@ vector sync_fields(string name, map cols,map colmap){
 		vec_add(&ret, format("drop table {}",name));
 		vec_add(&ret, format("alter table _temp rename to {}",name));
 	}
-	ret=cat(ret, cols_liteindex(cols,name));
+	ret=cat(ret, fields_liteindex(cols,name));
 	map_free(&colmap);
 	return ret;
 }
@@ -275,13 +275,6 @@ int sqls_exec(var conn, vector sqls,window win){
 	vec_free(&sqls);
 	return errs;
 }
-string table_sqls(var conn, string table){
-	map rows=lite_rows(conn, c_("select sql from sqlite_schema where tbl_name=:name"),map_all(c_("name"),ro(table)));
-	string ret=vec_s(ro(rows.vals), ";\n");
-	//ret=cat_c(ret,";\n");
-	map_free(&rows);
-	return ret;
-}
 int edit_sqls(var conn,string table,window win,cross types){
 	string sqls=table_sqls(conn,table);
 	int ret=0;
@@ -293,9 +286,9 @@ int edit_sqls(var conn,string table,window win,cross types){
 
 		else if(ewin.key==27){
 			string ans=win_menu(win,s_map(c_("yes Apply no Discard redit Re-edit")),c_("Apply Changes?"));
-			if(!ans.len || eq_c(ans,"no"))
+			if(!ans.len || eq(ans,"no"))
 				break;
-			if(eq_c(ans,"redit"))
+			if(eq(ans,"redit"))
 				continue;
 		}
 		string nsqls=ewin_get(&ewin);

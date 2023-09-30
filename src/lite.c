@@ -34,7 +34,7 @@ var lite_print_error(var conn,string sql,map params){
 	map_free(&params);
 	return Null;
 }
-var lite_rs(var conn,var sql,map params){
+var lite_rs(var conn,var sql,const map params){
 	sqlite3_stmt* stm=NULL;
 	if(sqlite3_prepare_v2(conn.ptr,sql.ptr,sql.len,&stm,NULL)!=SQLITE_OK)
 		return lite_print_error(conn,sql,params);
@@ -48,7 +48,7 @@ var lite_rs(var conn,var sql,map params){
 			return lite_print_error(conn,sql,params);
 
 	}
-	map_free(&params);
+	//map_free(&params);
 	vfree(sql);
 	return ptr_(stm);
 }
@@ -109,6 +109,7 @@ var lite_val(var conn,string sql,map params){
 	string ret=row.var[0];
 	row.var[0].readonly=1;
 	vec_free(&row);
+	map_free(&params);
 	rs_close(rs);
 	return ret;
 }
@@ -117,6 +118,7 @@ vector lite_vec(var conn,string sql,map params){
 	vector ret=NullVec;
 	vector row=Null;
 	while((row=rs_row(rs)).len) ret=cat(ret,row);
+	map_free(&params);
 	return ret;
 }
 map lite_rows(var conn, var sql, map params){
@@ -127,6 +129,7 @@ map lite_rows(var conn, var sql, map params){
 	while((row=rs_row(rs)).len){
 		vals=cat(vals,row);	
 	}
+	map_free(&params);
 	return (map){
 		.keys=keys,
 		.vals=vals,
@@ -140,6 +143,7 @@ int lite_exec(var conn,var sql,map params){
 		msleep(1000);
 	}
 	rs_close(rs);
+	map_free(&params);
 	if(status==SQLITE_DONE || status==SQLITE_ROW){
 		return 0;
 	}
@@ -193,10 +197,21 @@ var lite_update(var conn,var table,map pkeys,map vals){
 	_free(&table);
 	return lite_msg(conn);
 }
+vector lite_tables(var conn){
+	return lite_vec(conn, c_("select name from sqlite_master where type='table' and not name in ('search', 'search_config', 'search_content', 'search_data', 'search_docsize', 'search_idx') order by 1"),NullMap);
+}
 string lite_tablesql(var conn, string table){
 	return lite_val(conn,c_("select sql from sqlite_schema where type='table' and name=:name"),map_all(c_("name"),ro(table)));
 }
+string sqls_s(vector in){
+	return cat(vec_s(in, ";\n"),c_(";\n"));
+}
+string table_sqls(var conn, string table){
+	return sqls_s(lite_vec(conn, c_("select sql from sqlite_schema where tbl_name=:name"),map_all(c_("name"),ro(table))));
+}
 map table_fields(var conn,string table,cross types){
+	string mem=table;
+	table.readonly=1;
 	string sql=lite_tablesql(conn,table);
 	map cols=sql_cols(sql,types);
 	if(!cols.keys.len) return cols;
@@ -214,6 +229,7 @@ map table_fields(var conn,string table,cross types){
 		if(p) p->index=1;
 	}
 	vec_free(&rows);
+	_free(&mem);
 	return cols;
 }
 //map table_fields(var conn,string table){
@@ -250,7 +266,7 @@ map table_fields(var conn,string table,cross types){
 //	_free(&vals);
 //	return ret;
 //}
-string cols_litecreate(map cols){
+string fields_litecreate(const map cols){
 	string ret={0};
 	string pkeys={0};
 	for(int i=0; i<cols.keys.len; i++){
@@ -267,20 +283,21 @@ string cols_litecreate(map cols){
 	if(pkeys.len) ret=s_join(ret,",\n\t",format("primary key({})",pkeys));
 	return ret;
 }
-vector cols_liteindex(map cols,string table){
+vector fields_liteindex(const map cols,const string table){
 	vector ret=NullVec;
 	for(int i=0; i<cols.keys.len; i++){
 		field fld=*(field*)vec_p(cols.vals,i);
+		assert(fld.name.len);
 		if(fld.pkey||!fld.index && !fld.unique) continue;
 		string unique=fld.unique ? c_(" unique") : (string){0};
-		vec_add(&ret,format("create{} index idx_{}_{} on {} ({})",unique,table,fld.name,table,fld.name));
+		vec_add(&ret,print_s("create%.*s index idx_%.*s_%.*s on %.*s (%.*s)",ls(unique),ls(table),ls(fld.name),ls(table),ls(fld.name)));
 	}
 	return ret;
 }
 vector lite_create(string table,map cols){
 	vector ret=NullVec;
 	vec_add(&ret,format("drop table if exists {}",table));
-	vec_add(&ret,format("create table {} (\n\t{}\n)",table,cols_litecreate(cols)));
-	ret=cat(ret,cols_liteindex(cols,table));
+	vec_add(&ret,format("create table {} (\n\t{}\n)",table,fields_litecreate(cols)));
+	ret=cat(ret,fields_liteindex(cols,table));
 	return ret;
 }

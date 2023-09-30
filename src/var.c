@@ -72,6 +72,12 @@ void pair_free(pair* pair){
 	_free(&pair->head);
 	_free(&pair->tail);
 }
+int c_len(char* in){
+	return in ? strlen(in) : 0;
+}
+int s_ends(string in,char* by){
+	return eq(sub(in,in.len-c_len(by),End),by);
+}
 int s_start(string in,char* sub){
 	int len=strlen(sub);
 	if(in.len<len) return 0;
@@ -79,6 +85,17 @@ int s_start(string in,char* sub){
 }
 var p_(var* in){
 	return in ? ro(*in) : Null;
+}
+int s_out(string in){
+	for(int i=0; i<in.len; i++){
+		char c=in.str[i];
+		switch(c){
+			case '\t': printf("%*s",4,""); break;
+			default: putchar(c); break;
+		}
+	}
+	_free(&in);
+	return 0;
 }
 var ptr_(void* in){
 	return (var){
@@ -168,9 +185,10 @@ vector vec_del(vector* in,int idx){
 	return vec_del_ex(in,idx,1,_free);
 }
 range len_range(int full,int from,int len){
+//	if(from<0) from=full-(End-from);
 	if(from<0) from=0;
 	if(from>full) from=full;
-	if(len<0) len=full+len-from;
+	if(len<0) len=(full-from)-(End-len);
 	if(len<0) len=0;
 	if(from+len>full) len=full-from;
 	return (range){
@@ -315,16 +333,12 @@ vector vec_dup(vector in){
 	}
 	return ret;
 }
-int s_ends(string big, string small){
-	if(!small.len||!big.len||big.len<small.len) return 0;
-	return c_eq(big.str+big.len-small.len,small.str,small.len);
-}
 int c_eq(char* in1,char* in2,int len){
 	for(int i=0; i<len; i++)
 		if(tolower(in1[i])!=tolower(in2[i])) return 0;
 	return 1;
 }
-int eq(var in1, var in2){
+int eq_s(var in1, var in2){
 	if(in1.len<=0) return in1.ptr==in2.ptr;
 	if(in1.len!=in2.len) return 0;
 	return c_eq(in1.str,in2.str,in1.len);
@@ -511,7 +525,7 @@ int s_caseeq(string str1,string str2){
 		if(str1.str[i]!=str2.str[i]) return 0;
 	return 1;
 }
-int eq_c(string str1,char* str2){
+int eq(string str1,char* str2){
 	if(!str2) return 0;
 	int len=strlen(str2);
 	if(len!=str1.len) return 0;
@@ -765,7 +779,7 @@ string _cat_all(string in,...){
 }
 string s_dequote(string in,char* qchars){
 	if(in.len<2) return in;
-	if(strchr(qchars,in.str[0])) return sub(in,1,-1);
+	if(strchr(qchars,in.str[0])) return sub(in,1,End-1);
 	return in;
 }
 string s_unescape_ex(string in,char* find, char* replace){

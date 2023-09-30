@@ -59,7 +59,7 @@ var dump(var in){
 	_dump(in,0);
 	return in;
 }
-void os_log(string in){
+void log_os(string in){
 	log_error("%.*s: %s", ls(in), strerror(errno));
 	_free(&in);
 }

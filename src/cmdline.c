@@ -18,9 +18,12 @@ enum FileType {
 	FileBinary,
 };
 enum Command {
-	CmdNone=0,
+	CmdDump=0,
 	CmdSync,
-	CmdDump,
+	CmdVis,
+	CmdSQL,
+	CmdMeta,
+	CmdCreate,
 };
 struct s_filetype {
 	string filename;	
@@ -78,9 +81,9 @@ string inifile_args(){
 		string name=trim(nval.head);
 		string val=trim(nval.tail);
 
-		if(eq_c(name,"vim")) args.vim=is_word(val,"yes 1") ? 1 : 0;
-		if(eq_c(name,"typesfile") && val.len) args.typesfile=val;
-		if(eq_c(name,"border") && val.len) args.border=atoil(val);
+		if(eq(name,"vim")) args.vim=is_word(val,"yes 1") ? 1 : 0;
+		if(eq(name,"typesfile") && val.len) args.typesfile=val;
+		if(eq(name,"border") && val.len) args.border=atoil(val);
 	}
 	_free(&ls);
 	return lines;
@@ -126,25 +129,29 @@ int cmdline_args(int argc,char** argv){
 		if(is_word(v,"--help -h -?")){
 			args.help=1;
 		}
-		else if(is_word(v,"-sync -dump")){
+		else if(is_word(v,"-sync -dump -vis -meta -sql -create")){
 			if(args.command){
 				ret=log_error("extra argument %.*s",ls(v));
 				break;
 			}
-			if(eq_c(v,"-sync")) args.command=CmdSync;
-			else if(eq_c(v,"-dump")) args.command=CmdDump;
+			if(eq(v,"-sync")) args.command=CmdSync;
+			else if(eq(v,"-vis")) args.command=CmdVis;
+			else if(eq(v,"-dump")) args.command=CmdDump;
+			else if(eq(v,"-meta")) args.command=CmdMeta;
+			else if(eq(v,"-sql")) args.command=CmdSQL;
+			else if(eq(v,"-create")) args.command=CmdCreate;
 		}
 		else if(is_word(v,"-tsv -csv -db -sql -meta -ro")){
 			if(!file){
 				ret=log_error("extra argument %.*s",ls(v));
 				break;
 			}
-			if(eq_c(v,"-tsv")) file->type=FileTSV;
-			else if(eq_c(v,"-csv")) file->type=FileCSV;
-			else if(eq_c(v,"-db")) file->type=FileSQLite;
-			else if(eq_c(v,"-txt")) file->type=FileText;
-			else if(eq_c(v,"-meta")) file->type=FileMeta;
-			else if(eq_c(v,"-ro")) file->is_readonly=1;
+			if(eq(v,"-tsv")) file->type=FileTSV;
+			else if(eq(v,"-csv")) file->type=FileCSV;
+			else if(eq(v,"-db")) file->type=FileSQLite;
+			else if(eq(v,"-txt")) file->type=FileText;
+			else if(eq(v,"-meta")) file->type=FileMeta;
+			else if(eq(v,"-ro")) file->is_readonly=1;
 		}
 		else ret=log_error("unknown switch %.*s",ls(v));
 	}
@@ -169,30 +176,25 @@ int usage(char* msg){
 		"  <options ...>\n"
 		"\n"
 		"    commands\n"
-		"    -dump\n"
-		"        dump rows\n"
-		"    -sync\n"
-		"        sync between two by reading from source and writing to destination\n"
+		"    -vis              visual editing\n"
+		"    -dump             dump rows\n"
+		"    -sync             sync between two by reading from source and writing to destination\n"
 		"\n"
 		"    file type\n"
-		"    -tsv\n"
-		"        tab seperated file\n"
-		"    -csv\n"
-		"        comma seperated file\n"
-		"    -db\n"
-		"        sqlite3 database\n"
-		"    -txt\n"
-		"        text file\n"
-		"    -sql\n"
-		"        sql dump file\n"
-		"    -meta\n"
-		"        meta file describing database schema\n"
+		"    -tsv              tab seperated file\n"
+		"    -csv              comma seperated file\n"
+		"    -db               sqlite3 database\n"
+		"    -txt              text file\n"
+		"    -sql              sql dump file\n"
+		"    -meta             meta file describing database schema\n"
+		"\n"
+		"    mode\n"
+		"    -ro               read only mode\n"
 		"\n"
 		"  <source ...> and <destination ...>\n"
 		"        <filename> [<table>] [<id>]\n"
 		"\n"
-		"  -h, --help, -?\n"
-		"      display this help\n"
+		"    -h, --help, -?    display this help\n"
 		"\n",
 		COMPILE_DATE
 	);
@@ -246,6 +248,15 @@ struct s_filetype file_type(struct s_filetype ret){
 			break;
 		}
 		ptr++;
+	}
+	// survived upto here.
+	if(ret.type==FileText){
+		if(s_ends(ret.filename,".meta")){
+			ret.type=FileMeta;
+			vfree(header);
+			vfree(lines);
+			return ret;
+		}
 	}
 	if(!ret.rec_sep){
 		if(!ret.type)
@@ -309,6 +320,101 @@ int is_alpha(string in,char* extra){
 		str++;
 	}
 	return 1;
+}
+int sqlite_tables(string in){
+	var conn=lite_conn(in);
+	if(lite_error(conn)) return End;
+	vector tbls=lite_tables(conn);
+	s_out(vec_s(tbls,"\n"));
+	printf("\n");
+	lite_close(conn);
+	return 0;
+}
+string field_s(const field f){
+	string ret=ro(f.name);
+	if(!eq(f.type,"code")) ret=cat_all(ret,c_(" type "),f.type);
+	string title=name_title(f.name);
+	if(!eq_s(title,f.title)) ret=cat_all(ret,c_(" title "),f.title);
+	_free(&title);
+	return ret;
+}
+string table_meta(var conn,string name,cross types){
+	string ret=cat_all(ro(name),c_("\n"));
+	map in=table_fields(conn,ro(name),types);
+	map_each(in,j,field* f){
+		ret=cat_all(ret,c_("\t"),field_s(f[j]),c_("\n"));
+	}
+	vfree(name);
+	map_free_ex(&in,field_free);
+	return ret;
+}
+int sqlite_dbsql(string in,struct s_filetype out){
+	var conn=lite_conn(in);
+	if(lite_error(conn)) return End;
+	string ret=NullStr;
+	vector tbls=lite_tables(conn);
+	each(tbls,i,var* name){
+		ret=cat(ret,table_sqls(conn,name[i]));
+	}
+	vfree(tbls);
+	lite_close(conn);
+	s_out(ret);
+	return 0;
+}
+map meta_tables(string in,cross types){
+	if(!in.len) return NullMap;
+	string s=Null;
+	char* head=NULL;
+	string table=Null;
+	vector vals=vec_new(sizeof(map),0);
+	vector keys=NullVec;
+	while((s=s_upto(in,"\n",s)).len!=End){
+		if(s.len && !strchr("\t ",s.str[0])){
+			if(table.len){
+				vec_add(&keys,table);
+				map* mp=vec_addp(&vals,NULL);
+				*mp=fields_typed(s_fields(cl_(head,s.str-head)),types);
+			}
+			table=trim(s);
+			head=NULL;
+			continue;
+		}
+		if(!head) head=s.ptr;
+	}
+	if(table.len){
+		vec_add(&keys,table);
+		map* mp=vec_addp(&vals,NULL);
+		*mp=fields_typed(s_fields(sub(in,head-in.str,End)),types);
+	}
+	return (map){
+		.keys=keys,
+		.vals=vals,
+		.index=keys_index(keys),
+	};
+}
+vector tables_sqls(map tbls){
+	vector ret=NullVec;
+	map_each(tbls,i,map* mp){
+		string name=get(tbls.keys,i);
+		vec_add(&ret,format("create table {} (\n\t{}\n)",name,fields_litecreate(mp[i])));
+		ret=cat(ret,fields_liteindex(mp[i],name));
+		map_free_ex(mp+i,field_free);
+	}
+	map_free(&tbls);
+	return ret;
+}
+int sqlite_dbmeta(string in,struct s_filetype out,cross types){
+	var conn=lite_conn(in);
+	if(lite_error(conn)) return End;
+	string ret=NullStr;
+	vector tbls=lite_tables(conn);
+	each(tbls,i,var* name){
+		ret=cat(ret,table_meta(conn,name[i],types));
+	}
+	vfree(tbls);
+	lite_close(conn);
+	s_out(ret);
+	return 0;
 }
 int sqlite_dump(string in, string table, struct s_filetype out){
 	var conn=lite_conn(in);
@@ -376,28 +482,62 @@ int csql_main(int argc,char** argv){
 	if(logs.has_new){
 		// do nothing.
 	}
-	else if(args.command){
-		if(args.command==CmdDump){
-			if(args.file1.type!=FileSQLite)
-				log_error("source is not a sqlite database for dumping");
-			else if(!args.file1.cmd1.len)
-				log_error("provide a table name for dumping");
-			else
-				sqlite_dump(args.file1.filename, args.file1.cmd1, args.file2);
+	else if(args.command==CmdDump){
+		if(args.file1.type!=FileSQLite)
+			log_error("source is not a sqlite database for dumping");
+		else if(!args.file1.cmd1.len)
+			sqlite_tables(args.file1.filename);
+		else
+			sqlite_dump(args.file1.filename, args.file1.cmd1, args.file2);
+	}
+	else if(args.command==CmdSQL){
+		if(args.file1.type!=FileSQLite)
+			log_error("source is not a sqlite database");
+		else if(!args.file1.cmd1.len)
+			sqlite_dbsql(args.file1.filename, args.file2);
+		else{
+			var conn=lite_conn(args.file1.filename);
+			s_out(table_sqls(conn, args.file1.cmd1));
+			lite_close(conn);
 		}
 	}
-	else if(args.file1.type==FileSQLite){
-		var old=vis_init();
-		sqlite_browse(args.file1,win,types);
-		vis_restore(old);
+	else if(args.command==CmdCreate){
+		if(args.file1.type!=FileMeta)
+			log_error("source is not a meta file");
+		else if(!args.file1.cmd1.len){
+			string buff=file_s(args.file1.filename);
+			s_out(sqls_s(tables_sqls(meta_tables(buff,types))));
+			_free(&buff);
+		}
+		else{
+			//todo
+		}
 	}
-	else if(args.file1.type==FileCSV){
-		var old=vis_init();
-		csvfile_browse(args.file1,win,types);
-		vis_restore(old);
+	else if(args.command==CmdMeta){
+		if(args.file1.type!=FileSQLite)
+			log_error("source is not a sqlite database");
+		else if(!args.file1.cmd1.len)
+			sqlite_dbmeta(args.file1.filename, args.file2,types);
+		else{
+			var conn=lite_conn(args.file1.filename);
+			s_out(table_meta(conn, args.file1.cmd1, types));
+			lite_close(conn);
+		}
 	}
-	else{
-		log_error("This type of file isn't handled yet");
+	else if(args.command==CmdVis){
+		if(args.file1.type==FileSQLite){
+			var old=vis_init();
+			sqlite_browse(args.file1,win,types);
+			vis_restore(old);
+		}
+		else if(args.file1.type==FileCSV){
+			var old=vis_init();
+			csvfile_browse(args.file1,win,types);
+			vis_restore(old);
+		}
+		else{
+			log_error("This type of file isn't handled yet");
+		}
 	}
 	cross_free(&types);
 	vfree(types_s);

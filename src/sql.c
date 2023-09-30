@@ -32,7 +32,7 @@ map sql_cols(const string in, cross types){
 	vector toks=code_split(in,";",0);
 	if(!toks.len) return (map){0};
 	vector toks2=code_split(toks.var[0]," \t\n\r",0);
-	vector toks3=vec_trim(code_split(sub(vec_start(toks2,"("),1,-1),",",0));
+	vector toks3=vec_trim(code_split(sub(vec_start(toks2,"("),1,End-1),",",0));
 	map ret=map_new_ex(sizeof(field));
 	for(int i=0; i<toks3.len; i++){
 		string line=get(toks3,i);
@@ -49,11 +49,11 @@ map sql_cols(const string in, cross types){
 			continue;
 		}
 		vector toks4=code_split(line," \t\n\r([{",0);
-		vector cols=vec_trim(code_split(sub(vec_start(toks4,"("),1,-1),",",0));
-		if(eq_c(toks4.var[0],"primary")){
+		vector cols=vec_trim(code_split(sub(vec_start(toks4,"("),1,End-1),",",0));
+		if(eq(toks4.var[0],"primary")){
 			for(int i=0; i<cols.len; i++) ((field*)map_getp(ret,get(cols,i)))->pkey=1;
 		}
-		else if(eq_c(toks4.var[0],"unique")){
+		else if(eq(toks4.var[0],"unique")){
 			for(int i=0; i<cols.len; i++) ((field*)map_getp(ret,get(cols,i)))->unique=1;
 		}
 		vec_free(&cols);
@@ -76,13 +76,13 @@ sqlcls sql_cls(string sql){
 	sqlcls ret={0};
 	for(int i=0; i<cls.len; i++){
 		vector v=cls.var[i];
-		if(eq_c(v.var[0],"select")) ret.select=vec_s(sub(v,1,v.len)," ");
-		else if(eq_c(v.var[0],"from")) ret.from=vec_s(sub(v,1,v.len)," ");
-		else if(eq_c(v.var[0],"where")) ret.where=vec_s(sub(v,1,v.len)," ");
-		else if(eq_c(v.var[0],"group")) ret.group=vec_s(sub(v,2,v.len)," ");
-		else if(eq_c(v.var[0],"window")) ret.window=vec_s(sub(v,1,v.len)," ");
-		else if(eq_c(v.var[0],"order")) ret.order=vec_s(sub(v,2,v.len)," ");
-		else if(eq_c(v.var[0],"limit")) ret.limit=vec_s(sub(v,1,v.len)," ");
+		if(eq(v.var[0],"select")) ret.select=vec_s(sub(v,1,v.len)," ");
+		else if(eq(v.var[0],"from")) ret.from=vec_s(sub(v,1,v.len)," ");
+		else if(eq(v.var[0],"where")) ret.where=vec_s(sub(v,1,v.len)," ");
+		else if(eq(v.var[0],"group")) ret.group=vec_s(sub(v,2,v.len)," ");
+		else if(eq(v.var[0],"window")) ret.window=vec_s(sub(v,1,v.len)," ");
+		else if(eq(v.var[0],"order")) ret.order=vec_s(sub(v,2,v.len)," ");
+		else if(eq(v.var[0],"limit")) ret.limit=vec_s(sub(v,1,v.len)," ");
 		else ret.pre=vec_s(v," ");
 	}
 	vec_free(&toks);
@@ -126,7 +126,9 @@ string sql_limit(string sql,int from, int len){
 		sql=temp;
 	}
 	else vec_free(&toks);
-	return format("{} limit {},{}",sql,i_s(from),i_s(len));
+	string ret=print_s("%.*s limit %d,%d",ls(sql),from,len);
+	_free(&sql);
+	return ret;
 }
 vector sql_split(string in){
 	vector toks=code_split(in,";",0);

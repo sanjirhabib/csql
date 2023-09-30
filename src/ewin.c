@@ -211,7 +211,7 @@ string ewin_close(ewin* ewin){
 		return ret;
 	}
 	string newtext=editor_get(&ewin->editor);
-	if(eq(newtext,ewin->oldtext)){
+	if(eq_s(newtext,ewin->oldtext)){
 		_free(&newtext);
 		ewin_free(ewin);
 		return ret;
@@ -224,7 +224,7 @@ string ewin_get(ewin* ewin){
 }
 int ewin_changed(ewin* ewin){
 	string newtext=editor_get(&ewin->editor);
-	int ret=!eq(newtext,ewin->oldtext);
+	int ret=!eq_s(newtext,ewin->oldtext);
 	_free(&newtext);
 	return ret;
 }

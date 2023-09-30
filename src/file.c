@@ -38,7 +38,7 @@ int fp_write(var fp,string out){
 	while(parts.len>0){
 		int ret=fwrite(parts.str,1,parts.len,fp.ptr);
 		if(!ret){
-			os_log(c_("Writing to file failed"));
+			log_os(c_("Writing to file failed"));
 			return 0;
 		}
 		parts=sub(parts,ret,parts.len);
@@ -56,12 +56,12 @@ int s_save(string in,string filename){
 	return 1;
 }
 var file_fp(string filename,char* rw){
-	if(!filename.len || eq_c(filename,"-")) return ptr_(stdout);
+	if(!filename.len || eq(filename,"-")) return ptr_(stdout);
 	string name=filename_os(filename);
 	if(!name.len) return Null;
 	FILE* fp=fopen(name.str,rw);
 	if(!fp){
-		os_log(name);
+		log_os(name);
 		return Null;
 	}
 	vfree(name);
@@ -77,7 +77,7 @@ string file_read(string filename,int from, int len){
 	fseek(fp.ptr,0,SEEK_END);
 	size_t size=ftell(fp.ptr);
 	fseek(fp.ptr,0,SEEK_SET);
-	range r=len_range(size,from,len==End ? size : len);
+	range r=len_range(size,from,len);
 	string ret=s_new(NULL,r.len);
 	size_t read=fread(ret.str,1,r.len,fp.ptr);
 	fp_close(fp);

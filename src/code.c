@@ -111,12 +111,12 @@ int vec_count(vector in,char* search){
 	int ret=0;
 	var s=c_(search);
 	for(int i=0; i<in.len; i++)
-		if(eq(in.var[i],s)) ret++;
+		if(eq_s(in.var[i],s)) ret++;
 	return ret;
 }
 int vec_search(vector in,string s){
 	for(int i=0; i<in.len; i++)
-		if(eq(in.var[i],s)) return i;
+		if(eq_s(in.var[i],s)) return i;
 	return End;
 }
 string vec_start(vector toks,char* start){
